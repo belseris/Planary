@@ -1,91 +1,258 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, TextInput, Button, Alert } from "react-native";
-import { createDiary, getDiary, updateDiary } from "../diary";
+// src/screens/EditDiaryScreen.js
 
-const MOODS = ["happy","neutral","sad","angry","cry"];
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import {
+  View, Text, ScrollView, TextInput, TouchableOpacity,
+  StyleSheet, Alert, Modal, ActivityIndicator
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+// 1. Import `deleteDiary` เข้ามาใช้งาน
+import { getDiary, createDiary, updateDiary, deleteDiary } from "../diary"; 
+import { listActivities } from "../activities"; 
 
-function toDateInput(d) {
-  if (typeof d === "string") return d;
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const da = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${da}`;
-}
-function toTimeInput(d) {
-  const h = String(d.getHours()).padStart(2, "0");
-  const mi = String(d.getMinutes()).padStart(2, "0");
-  return `${h}:${mi}`;
-}
+// --- Star Rating ---
+const StarRating = ({ value, onChange }) => (
+  <View style={styles.starContainer}>
+    {[1, 2, 3, 4, 5].map(i => (
+      <TouchableOpacity key={i} onPress={() => onChange(i)}>
+        <Ionicons
+          name={i <= value ? "star" : "star-outline"}
+          size={24}
+          color={i <= value ? "#f5c518" : "#ccc"}
+        />
+      </TouchableOpacity>
+    ))}
+  </View>
+);
 
-export default function EditDiary({ route, navigation }) {
-  const id = route.params?.id;
+const MOODS = ["🙂", "😄", "😢", "😠", "😌", "🤩"];
 
-  const [date, setDate] = useState(toDateInput(new Date()));
-  const [time, setTime] = useState(toTimeInput(new Date()));
+// --- Screen ---
+export default function EditDiaryScreen({ route, navigation }) {
+  const id = route.params?.id || null;
+  const initDate = route.params?.date || new Date().toISOString().slice(0, 10);
+
   const [title, setTitle] = useState("");
   const [detail, setDetail] = useState("");
-  const [mood, setMood] = useState("neutral");
-  const [tags, setTags] = useState(""); 
+  const [date, setDate] = useState(initDate);
+  const [mood, setMood] = useState(MOODS[0]);
+  const [dayActivities, setDayActivities] = useState([]); 
+  
+  const [loading, setLoading] = useState(!!id);
+  const [isMoodModalVisible, setMoodModalVisible] = useState(false);
 
-    const load = async () => {
-    if (!id) return;
+  // โหลดข้อมูล
+  const load = useCallback(async () => {
     try {
-        const d = await getDiary(id);
-        setDate(d.date);
-        setTime(d.time.slice(0, 5));
-        setTitle(d.title);
-        setDetail(d.detail || "");
-        setMood((d.mood || "neutral").toLowerCase());
-        setTags(d.tags || "");
-    } catch {
-        Alert.alert("โหลดข้อมูลไม่สำเร็จ");
+      setLoading(true);
+      // โหลดกิจกรรมของวัน
+      const activityData = await listActivities({ qdate: date });
+      const activitiesWithFeedback = (activityData.items || []).map(act => ({
+        ...act,
+        rating: act.rating || 0,
+        activityMood: act.activityMood || MOODS[0],
+      }));
+
+      if (id) {
+        // โหลด Diary เดิม
+        const diaryData = await getDiary(id);
+        setTitle(diaryData.title);
+        setDetail(diaryData.detail || "");
+        setMood(diaryData.mood || MOODS[0]);
+
+        // Merge feedback ที่เคยบันทึกไว้
+        const reviewedActivities = activitiesWithFeedback.map(act => {
+          const savedFeedback = Array.isArray(diaryData.activities)
+            ? diaryData.activities.find(f => f.id === act.id)
+            : null;
+          return savedFeedback ? { ...act, ...savedFeedback } : act;
+        });
+        setDayActivities(reviewedActivities);
+      } else {
+        setDayActivities(activitiesWithFeedback);
+      }
+    } catch (e) {
+      Alert.alert("เกิดข้อผิดพลาด", "ไม่สามารถโหลดข้อมูลได้");
+      console.error(e);
+    } finally {
+      setLoading(false);
     }
+  }, [id, date]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  // บันทึก
+  const onSave = async () => {
+    if (!title.trim()) {
+      Alert.alert("ข้อมูลไม่ครบถ้วน", "กรุณากรอกชื่อเรื่อง");
+      return;
+    }
+    const now = new Date();
+    const payload = {
+      date,
+      time: `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}:00`,
+      title: title.trim(),
+      detail: detail.trim(),
+      mood,
+      activities: dayActivities.map(({ id, category, title, rating, activityMood }) => ({
+        id, category, title, rating, activityMood,
+      })),
     };
 
-  useEffect(() => { load(); }, [id]);
-
-  const onSave = async () => {
-    const payload = { date, time: time.length === 5 ? `${time}:00` : time, title, detail, mood, tags };
     try {
-      if (id) await updateDiary(id, payload);
-      else await createDiary(payload);
+      if (id) {
+        await updateDiary(id, payload);
+      } else {
+        await createDiary(payload);
+      }
       navigation.goBack();
-    } catch {
-      Alert.alert("บันทึกไม่สำเร็จ", "ตรวจสอบข้อมูล");
+    } catch (e) {
+      Alert.alert("บันทึกไม่สำเร็จ", e?.response?.data?.detail || "กรุณาตรวจสอบข้อมูลอีกครั้ง");
+      console.error(e);
     }
   };
 
+  // 2. เพิ่มฟังก์ชันสำหรับจัดการการลบ
+  const onDelete = () => {
+    Alert.alert(
+      "ยืนยันการลบ",
+      "คุณแน่ใจหรือไม่ว่าต้องการลบบันทึกนี้? การกระทำนี้ไม่สามารถย้อนกลับได้",
+      [
+        { text: "ยกเลิก", style: "cancel" },
+        {
+          text: "ลบ",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              if (id) {
+                await deleteDiary(id);
+                navigation.goBack();
+              }
+            } catch (e) {
+              Alert.alert("ลบไม่สำเร็จ", e?.response?.data?.detail || "เกิดข้อผิดพลาด");
+              console.error(e);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // update กิจกรรมรายวัน
+  const handleActivityUpdate = (activityId, key, value) => {
+    setDayActivities(currentActivities =>
+      currentActivities.map(act =>
+        act.id === activityId ? { ...act, [key]: value } : act
+      )
+    );
+  };
+
+  const formattedDate = useMemo(() => {
+    try {
+      return new Date(date).toLocaleDateString("th-TH", { year: 'numeric', month: 'long', day: 'numeric' });
+    } catch { return date; }
+  }, [date]);
+
+  if (loading) {
+    return <View style={styles.centered}><ActivityIndicator size="large" /></View>
+  }
+
   return (
-    <View style={{ flex: 1, padding: 16 }}>
-      <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 8 }}>
-        <Text style={{ fontSize: 18, fontWeight: "bold" }}>{id ? "แก้ไข" : "บันทึก"}</Text>
-        <Button title="บันทึก" onPress={onSave} />
+    <View style={styles.screen}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Ionicons name="close" size={28} color="#555" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>{id ? "แก้ไขบันทึก" : "สร้างบันทึกใหม่"}</Text>
+        
+        {/* 3. เพิ่มปุ่มลบและบันทึกใน Header */}
+        <View style={styles.headerActions}>
+          {id && (
+            <TouchableOpacity onPress={onDelete} style={{ marginRight: 16 }}>
+              <Ionicons name="trash-outline" size={24} color="#e74c3c" />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity onPress={onSave}>
+            <Ionicons name="checkmark" size={28} color="#1f6f8b" />
+          </TouchableOpacity>
+        </View>
       </View>
 
-      <Text style={{ marginBottom: 6 }}>วันที่ (YYYY-MM-DD)</Text>
-      <TextInput value={date} onChangeText={setDate} style={styles.input} />
+      <ScrollView contentContainerStyle={styles.scrollContainer}>
+        <Text style={styles.dateText}>{formattedDate}</Text>
+        
+        <View style={styles.card}>
+          <TextInput style={styles.titleInput} value={title} onChangeText={setTitle} placeholder="ชื่อเรื่อง..." placeholderTextColor="#ccc" />
+          <View style={styles.divider} />
+          <TextInput style={styles.detailInput} value={detail} onChangeText={setDetail} multiline placeholder="รายละเอียด..." placeholderTextColor="#ccc" />
+        </View>
 
-      <Text style={{ marginTop: 12, marginBottom: 6 }}>เวลา (HH:MM)</Text>
-      <TextInput value={time} onChangeText={setTime} style={styles.input} />
+        <View style={styles.card}>
+          <TouchableOpacity style={styles.moodButton} onPress={() => setMoodModalVisible(true)}>
+            <Text style={styles.moodButtonText}>+ ความรู้สึกวันนี้</Text>
+            <Text style={styles.moodEmoji}>{mood}</Text>
+          </TouchableOpacity>
+        </View>
+        
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>กิจกรรมของวันนี้</Text>
+          {dayActivities.length > 0 ? dayActivities.map(act => (
+            <View key={act.id} style={styles.activityItem}>
+              <Ionicons name="ellipse" size={10} color="#888" style={{marginRight: 8}} />
+              <Text style={styles.activityTitle} numberOfLines={1}>{act.title}</Text>
+              <StarRating value={act.rating} onChange={(val) => handleActivityUpdate(act.id, 'rating', val)} />
+              <TouchableOpacity onPress={() => handleActivityUpdate(act.id, 'activityMood', act.activityMood === "🙂" ? "😄" : "🙂")}>
+                <Text style={styles.moodEmoji}>{act.activityMood}</Text>
+              </TouchableOpacity>
+            </View>
+          )) : <Text style={styles.emptyText}>ไม่มีกิจกรรมในวันนี้</Text>}
+        </View>
+      </ScrollView>
 
-      <Text style={{ marginTop: 12, marginBottom: 6 }}>ชื่อเรื่อง</Text>
-      <TextInput value={title} onChangeText={setTitle} style={styles.input} />
-
-      <Text style={{ marginTop: 12, marginBottom: 6 }}>รายละเอียด</Text>
-      <TextInput value={detail} onChangeText={setDetail} style={[styles.input, { height: 120 }]} multiline />
-
-      <Text style={{ marginTop: 12, marginBottom: 6 }}>อารมณ์</Text>
-      <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
-        {MOODS.map(m => (
-          <View key={m} style={{ marginRight: 8, marginBottom: 8 }}>
-            <Button title={m === mood ? `[${m}]` : m} onPress={() => setMood(m)} />
+      <Modal visible={isMoodModalVisible} transparent animationType="fade">
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>เลือกความรู้สึกวันนี้</Text>
+            <View style={styles.moodPicker}>
+              {MOODS.map(m => (
+                <TouchableOpacity key={m} style={styles.moodOption} onPress={() => { setMood(m); setMoodModalVisible(false); }}>
+                  <Text style={styles.moodEmojiOption}>{m}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
-        ))}
-      </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
-const styles = {
-  input: { borderWidth: 1, borderColor: "#ccc", borderRadius: 10, padding: 10 },
-};
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: "#fff" },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center'},
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 16, paddingTop: 44, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: "#f0f0f0" },
+  headerActions: { flexDirection: 'row', alignItems: 'center' },
+  headerTitle: { fontSize: 18, fontWeight: "600", color: "#333" },
+  scrollContainer: { padding: 16, paddingBottom: 100 },
+  dateText: { fontSize: 16, fontWeight: '500', color: '#555', marginBottom: 16, textAlign: 'center' },
+  card: { backgroundColor: "#f9f9f9", borderRadius: 12, padding: 16, marginBottom: 16 },
+  titleInput: { fontSize: 20, fontWeight: 'bold', paddingBottom: 8 },
+  divider: { height: 1, backgroundColor: '#eee', marginVertical: 8 },
+  detailInput: { fontSize: 16, minHeight: 100, textAlignVertical: 'top' },
+  moodButton: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  moodButtonText: { fontSize: 16, fontWeight: '600' },
+  moodEmoji: { fontSize: 28, marginLeft: 12 },
+  sectionTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 12 },
+  activityItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#eee' },
+  activityTitle: { flex: 1, fontSize: 14, marginRight: 8 },
+  starContainer: { flexDirection: 'row', marginRight: 8 },
+  emptyText: { color: '#999', fontStyle: 'italic' },
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center" },
+  modalContent: { backgroundColor: "#fff", borderRadius: 12, padding: 20, width: "85%" },
+  modalTitle: { fontSize: 18, fontWeight: "bold", marginBottom: 20, textAlign: "center" },
+  moodPicker: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-around' },
+  moodOption: { padding: 10, margin: 5 },
+  moodEmojiOption: { fontSize: 40 },
+});

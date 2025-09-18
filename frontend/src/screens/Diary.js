@@ -4,7 +4,7 @@ import React, { useState, useCallback } from "react";
 import { View, Text, SectionList, TouchableOpacity, StyleSheet, ActivityIndicator, SafeAreaView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
-import { listDiaries } from "../diary"; // ตรวจสอบว่า path นี้ถูกต้อง
+import { listDiaries } from "../api/diary"; // Path ที่ถูกต้อง
 
 const MONTHS = [ "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค." ];
 const DAYS = ["วันอาทิตย์", "วันจันทร์", "วันอังคาร", "วันพุธ", "วันพฤหัสบดี", "วันศุกร์", "วันเสาร์"];
@@ -103,22 +103,10 @@ export default function DiaryScreen() {
           sections={sections}
           keyExtractor={(item) => item.id.toString()}
           renderSectionHeader={({ section: { title } }) => <View style={styles.sectionHeader}><Text style={styles.sectionHeaderText}>{formatSectionHeaderDate(title)}</Text></View>}
-          renderItem={({ item }) => (
-            <DiaryCard
-              item={item}
-              // <<<< แก้ไขจุดที่ 1 >>>>
-              onPress={() => navigation.navigate("EditDiary", { id: item.id })}
-            />
-          )}
+          renderItem={({ item }) => <DiaryCard item={item} onPress={() => navigation.navigate("EditDiary", { diaryId: item.id })}/>}
         />
       )}
-      <TouchableOpacity 
-        style={styles.fab} 
-        // <<<< แก้ไขจุดที่ 2 >>>>
-        onPress={() => navigation.navigate("EditDiary", { date: new Date().toISOString().slice(0, 10) })}
-      >
-        <Ionicons name="add" size={32} color="#fff" />
-      </TouchableOpacity>
+      <TouchableOpacity style={styles.fab} onPress={() => navigation.navigate("EditDiary")}><Ionicons name="add" size={32} color="#fff" /></TouchableOpacity>
     </SafeAreaView>
   );
 }
