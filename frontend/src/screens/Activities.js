@@ -1,194 +1,151 @@
+// screens/ActivitiesScreen.js
 import React, { useEffect, useMemo, useState, useCallback } from "react";
-import { View, Text, SectionList, TouchableOpacity, StyleSheet, Alert } from "react-native";
+import { View, Text, SectionList, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { listActivities } from "../activities";
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { listActivities } from "../activities"; // ✅ 1. Import API กิจกรรม
+import { CATEGORIES, STATUSES, TH_DAYS } from "../utils/constants"; // ✅ 2. Import จาก constants
+import { toDateString, getStartOfWeek } from "../utils/dateUtils";
 
-// --- ใช้ข้อมูลจากโค้ดเดิม ---
-const STATUS_LABELS = {
-  warning: "กำลังเริ่ม",
-  success: "สมบูรณ์",
-  danger: "หมดเวลา",
-  normal: "ปกติ",
-};
-
-const STATUS_STYLES = {
-  danger:   { backgroundColor: '#fff1f0', color: '#ff4d4f' },
-  warning:  { backgroundColor: '#fffbe6', color: '#faad14' },
-  success:  { backgroundColor: '#f6ffed', color: '#52c41a' },
-  normal:   { backgroundColor: '#fafafa', color: '#8c8c8c' },
-};
-
-// --- เพิ่ม: นำข้อมูลหมวดหมู่พร้อมอีโมจิมาใช้ ---
-const CATEGORIES = [
-  { name: "เรียน", emoji: "📚" },
-  { name: "ทำงาน", emoji: "💼" },
-  { name: "ออกกำลังกาย", emoji: "🏋️" },
-  { name: "เรื่องบ้าน", emoji: "🏠" },
-  { name: "ส่วนตัว", emoji: "👤" },
-  { name: "สุขภาพ", emoji: "❤️‍🩹" },
-];
-
-const TH_DAYS = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
-
-function toDateStr(d) {
-  const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, "0"), da = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${da}`;
-}
-
-function startOfWeekMon(d) {
-  const day = d.getDay();
-  const diff = (day === 0 ? -6 : 1 - day);
-  const nd = new Date(d);
-  nd.setDate(d.getDate() + diff);
-  return nd;
-}
-
-function useWeek(selectedDate) {
+// --- Components (useWeek, WeekSelector) ---
+const useWeek = (selectedDate) => {
   return useMemo(() => {
-    const base = startOfWeekMon(new Date(selectedDate));
-    const arr = [];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(base);
-      d.setDate(base.getDate() + i);
-      arr.push({ date: toDateStr(d), jsDay: d.getDay() });
-    }
-    return arr;
+    const start = getStartOfWeek(new Date(selectedDate));
+    return Array.from({ length: 7 }).map((_, i) => {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      return { date: toDateString(d), dayIndex: d.getDay() };
+    });
   }, [selectedDate]);
-}
+};
 
-function groupByStatus(items) {
-  const groups = {};
-  items.forEach(it => {
-    const label = STATUS_LABELS[it.status] || "อื่น ๆ";
-    if (!groups[label]) groups[label] = [];
-    groups[label].push(it);
-  });
-  return Object.entries(groups).map(([title, data]) => ({ title, data }));
-}
-
-export default function ActivitiesScreen({ navigation }) {
-  const [selectedDate, setSelectedDate] = useState(toDateStr(new Date()));
-  const [items, setItems] = useState([]);
-  const week = useWeek(selectedDate);
-
-  const load = useCallback(async () => {
-    try {
-      const data = await listActivities({ qdate: selectedDate });
-      setItems(Array.isArray(data.items) ? data.items : []);
-    } catch (e) {
-      console.error(e);
-      Alert.alert("โหลดกิจกรรมไม่สำเร็จ");
-      setItems([]);
-    }
-  }, [selectedDate]);
-
-  useEffect(() => {
-    const unsub = navigation.addListener("focus", load);
-    return unsub;
-  }, [navigation, load]);
-  useEffect(() => { load(); }, [load]);
-
-  const grouped = useMemo(() => groupByStatus(items), [items]);
-  
-  const headingTH = useMemo(() => {
-    try {
-      return new Date(selectedDate).toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
-    } catch { return selectedDate; }
-  }, [selectedDate]);
-
-  const renderDayChip = (dobj) => {
-    const isSelected = dobj.date === selectedDate;
-    return (
-      <TouchableOpacity
-        key={dobj.date}
-        onPress={() => setSelectedDate(dobj.date)}
-        style={[styles.dayChip, isSelected && styles.dayChipSelected]}
-      >
-        <Text style={[styles.dayChipText, isSelected && styles.dayChipTextSelected]}>{TH_DAYS[dobj.jsDay]}</Text>
+const WeekSelector = ({ week, selectedDate, onDateSelect }) => (
+  <View style={styles.weekContainer}>
+    {week.map(({ date, dayIndex }) => (
+      <TouchableOpacity key={date} onPress={() => onDateSelect(date)} style={[styles.dayChip, selectedDate === date && styles.dayChipSelected]}>
+        <Text style={[styles.dayChipText, selectedDate === date && styles.dayChipTextSelected]}>{TH_DAYS[dayIndex]}</Text>
       </TouchableOpacity>
-    );
-  };
+    ))}
+  </View>
+);
 
-  const renderItem = ({ item }) => {
-    const pill = item.all_day ? "ทั้งวัน" : (item.time ? item.time.slice(0, 5) : "-");
-    const style = STATUS_STYLES[item.status] || STATUS_STYLES.normal;
-    // --- เพิ่ม: ค้นหาอีโมจิจากหมวดหมู่ ---
-    const category = CATEGORIES.find(c => c.name === item.category);
-    const emoji = category ? category.emoji : "📁"; // 📁 เป็นอีโมจิเริ่มต้น
-
-    return (
-      <TouchableOpacity
-        onPress={() => navigation.navigate("EditActivity", { id: item.id })}
-        style={styles.card}
-      >
-        <View style={styles.cardRow}>
-          {/* --- เพิ่ม: แสดงอีโมจิ --- */}
-          <Text style={styles.cardEmoji}>{emoji}</Text>
-          <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
-          <Text style={styles.cardTime}>{pill}</Text>
-          <View style={[styles.badge, { backgroundColor: style.backgroundColor }]}>
-            <Text style={{ color: style.color, fontWeight: "bold" }}>
-              {STATUS_LABELS[item.status] || "ปกติ"}
-            </Text>
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
-  };
-
-  const renderSectionHeader = ({ section }) => (
-    <Text style={styles.sectionHeader}>{section.title}</Text>
-  );
+// --- ActivityCard (ฉบับแก้ไข) ---
+const ActivityCard = ({ item, onPress }) => {
+  const statusStyle = STATUSES[item.status] || STATUSES.normal;
+  const category = CATEGORIES.find(c => c.name === item.category);
+  const timeLabel = item.all_day ? "ทั้งวัน" : (item.time ? item.time.slice(0, 5) : "-");
+  const isFromRoutine = !!item.routine_id; // ✅ 3. ตรวจสอบจาก routine_id
 
   return (
-    <View style={styles.container}>
-      <View style={styles.headerContainer}>
-        <View style={styles.weekContainer}>{week.map(renderDayChip)}</View>
-        <Text style={styles.dateHeader}>วันที่ {headingTH}</Text>
+    // ✅ 4. onPress ทำงานทุกการ์ด
+    <TouchableOpacity style={[styles.card, isFromRoutine && styles.routineCard]} onPress={onPress}>
+      <View style={styles.cardRow}>
+        <Text style={styles.cardEmoji}>{category?.emoji || "📁"}</Text>
+        <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
+        <Text style={styles.cardTime}>{timeLabel}</Text>
+        <View style={[styles.badge, { backgroundColor: statusStyle.backgroundColor }]}>
+          <Text style={{ color: statusStyle.color, fontWeight: "bold" }}>{statusStyle.label}</Text>
+        </View>
       </View>
-      
-      <SectionList
-        sections={grouped}
-        keyExtractor={item => String(item.id)}
-        renderItem={renderItem}
-        renderSectionHeader={renderSectionHeader}
-        ListEmptyComponent={<Text style={styles.empty}>ยังไม่มีกิจกรรมในวันนี้</Text>}
-        contentContainerStyle={{ paddingBottom: 100, paddingHorizontal: 16 }}
-      />
-      
-      <View style={styles.addContainer}>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => navigation.navigate("EditActivity", { date: selectedDate })}
-        >
-          <Ionicons name="add" size={20} color="#333" />
-          <Text style={styles.addText}>เพิ่มกิจกรรม</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+    </TouchableOpacity>
   );
+};
+
+// --- หน้าจอหลัก ---
+export default function ActivitiesScreen({ navigation }) {
+    const [selectedDate, setSelectedDate] = useState(toDateString(new Date()));
+    const [items, setItems] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const week = useWeek(selectedDate);
+
+    // ✅ 5. loadActivities เรียก API เดียว
+    const loadActivities = useCallback(async () => {
+        setLoading(true);
+        try {
+            // Backend จะสร้าง Activity จาก Routine ให้เอง
+            const activityData = await listActivities({ qdate: selectedDate });
+            setItems(activityData.items || []);
+        } catch (e) {
+            Alert.alert("เกิดข้อผิดพลาด", "ไม่สามารถโหลดข้อมูลกิจกรรมได้");
+            setItems([]);
+        } finally {
+            setLoading(false);
+        }
+    }, [selectedDate]);
+
+    useEffect(() => { loadActivities(); }, [selectedDate, loadActivities]);
+    useEffect(() => {
+        const unsubscribe = navigation.addListener("focus", () => loadActivities());
+        return unsubscribe;
+    }, [navigation, loadActivities]);
+
+    // ✅ 6. จัดกลุ่มโดยใช้ routine_id
+    const groupedItems = useMemo(() => {
+        const groups = { "กิจกรรมประจำวัน": [] };
+        const regularGroups = {};
+
+        items.forEach(item => {
+            if (item.routine_id) {
+                groups["กิจกรรมประจำวัน"].push(item);
+            } else {
+                const statusLabel = STATUSES[item.status]?.label || "อื่นๆ";
+                if (!regularGroups[statusLabel]) regularGroups[statusLabel] = [];
+                regularGroups[statusLabel].push(item);
+            }
+        });
+        const combined = { ...groups, ...regularGroups };
+        return Object.entries(combined)
+            .filter(([_, data]) => data.length > 0)
+            .map(([title, data]) => ({ title, data }));
+    }, [items]);
+
+    const formattedDateHeader = useMemo(() => new Date(selectedDate).toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" }), [selectedDate]);
+
+    return (
+        <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+            <View style={styles.headerContainer}>
+                <WeekSelector week={week} selectedDate={selectedDate} onDateSelect={setSelectedDate} />
+                <Text style={styles.dateHeader}>วันที่ {formattedDateHeader}</Text>
+            </View>
+            <View style={styles.listContainer}>
+                {(loading && items.length === 0) ? <ActivityIndicator size="large" style={{ marginTop: 50 }} color="#1f6f8b" /> : (
+                    <SectionList
+                        sections={groupedItems}
+                        keyExtractor={(item) => item.id.toString()}
+                        renderItem={({ item }) => <ActivityCard item={item} onPress={() => navigation.navigate("ActivityDetail", { id: item.id })} />}
+                        renderSectionHeader={({ section }) => <Text style={styles.sectionHeader}>{section.title}</Text>}
+                        ListEmptyComponent={<Text style={styles.empty}>ยังไม่มีกิจกรรมในวันนี้</Text>}
+                        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
+                    />
+                )}
+                {loading && items.length > 0 && <View style={styles.loadingOverlay}><ActivityIndicator size="large" color="#1f6f8b" /></View>}
+            </View>
+            <TouchableOpacity style={styles.addButton} onPress={() => navigation.navigate("EditActivity", { date: selectedDate })}>
+                <Ionicons name="add" size={32} color="#fff" />
+            </TouchableOpacity>
+        </SafeAreaView>
+    );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
-  headerContainer: { paddingHorizontal: 16, paddingTop: 44, paddingBottom: 10, backgroundColor: '#fff' },
-  weekContainer: { flexDirection: "row", marginBottom: 16, justifyContent: 'space-between' },
-  dayChip: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10, backgroundColor: "#f5f5f5", minWidth: 44, alignItems: "center" },
-  dayChipSelected: { backgroundColor: "rgba(255, 219, 231, 0.5)", borderWidth: 1, borderColor: "#ff9fbf" },
-  dayChipText: { fontWeight: "500", color: '#888' },
-  dayChipTextSelected: { fontWeight: "700", color: '#000' },
-  dateHeader: { fontSize: 16, fontWeight: "bold", color: '#333', paddingHorizontal: 16 },
-  sectionHeader: { fontSize: 14, fontWeight: "700", marginTop: 12, marginBottom: 6, color: '#555' },
-  card: { backgroundColor: "#f7f7f7", borderRadius: 10, padding: 12, marginBottom: 8 },
-  cardRow: { flexDirection: "row", alignItems: "center" },
-  // --- เพิ่ม: สไตล์สำหรับอีโมจิ ---
-  cardEmoji: { fontSize: 20, marginRight: 10 },
-  cardTitle: { flex: 1, fontSize: 14, color: "#333" },
-  cardTime: { marginHorizontal: 8, fontSize: 12, color: "#666" },
-  badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
-  empty: { textAlign: "center", marginTop: 40, color: "#aaa" },
-  addContainer: { position: "absolute", bottom: 20, left: 0, right: 0, alignItems: "center" },
-  addButton: { flexDirection: "row", backgroundColor: "#f0f0f0", paddingVertical: 12, paddingHorizontal: 24, borderRadius: 30, alignItems: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 5 },
-  addText: { marginLeft: 6, fontSize: 16, fontWeight: '600', color: '#444' }
+    container: { flex: 1, backgroundColor: "#f7f8fa" },
+    listContainer: { flex: 1 },
+    loadingOverlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(247, 248, 250, 0.7)", justifyContent: "center", alignItems: "center" },
+    headerContainer: { paddingHorizontal: 16, paddingTop: Platform.OS === 'android' ? 10 : 0, paddingBottom: 10, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
+    weekContainer: { flexDirection: "row", justifyContent: 'space-between' },
+    dayChip: { flex: 1, paddingVertical: 8, borderRadius: 10, backgroundColor: "#f5f5f5", alignItems: "center", marginHorizontal: 2 },
+    dayChipSelected: { backgroundColor: "#1f6f8b" },
+    dayChipText: { fontWeight: "500", color: '#888' },
+    dayChipTextSelected: { fontWeight: "700", color: '#fff' },
+    dateHeader: { fontSize: 16, fontWeight: "bold", color: '#333', marginTop: 16 },
+    sectionHeader: { fontSize: 14, fontWeight: "700", marginTop: 16, marginBottom: 8, color: '#555', paddingHorizontal: 4 },
+    card: { backgroundColor: "#fff", borderRadius: 10, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: '#eee' },
+    routineCard: { backgroundColor: '#f0f9ff', borderColor: '#a3d8f4' },
+    cardRow: { flexDirection: "row", alignItems: "center" },
+    cardEmoji: { fontSize: 20, marginRight: 12 },
+    cardTitle: { flex: 1, fontSize: 15, fontWeight: '500', color: "#333" },
+    cardTime: { marginHorizontal: 8, fontSize: 12, color: "#666" },
+    badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
+    empty: { textAlign: "center", marginTop: 50, color: "#aaa", fontSize: 16 },
+    addButton: { position: "absolute", bottom: 30, right: 20, width: 60, height: 60, borderRadius: 30, backgroundColor: "#1f6f8b", justifyContent: "center", alignItems: "center", elevation: 5 }
 });
-

@@ -1,6 +1,14 @@
 from pydantic import BaseModel, Field
 from datetime import date, time
 from uuid import UUID
+from typing import List
+
+class ActivityFeedback(BaseModel):
+    id: str
+    category: str
+    title: str
+    rating: int
+    activityMood: str
 
 class DiaryCreate(BaseModel):
     date: date
@@ -9,6 +17,7 @@ class DiaryCreate(BaseModel):
     detail: str | None = Field(None, max_length=2000)
     mood: str
     tags: str | None = None
+    activities: List[ActivityFeedback] | None = None
 
 class DiaryUpdate(BaseModel):
     date: date
@@ -17,6 +26,7 @@ class DiaryUpdate(BaseModel):
     detail: str | None = Field(None, max_length=2000)
     mood: str
     tags: str | None = None
+    activities: List[ActivityFeedback] | None = None
 
 class DiaryResponse(BaseModel):
     id: UUID
@@ -26,6 +36,7 @@ class DiaryResponse(BaseModel):
     detail: str | None = None
     mood: str
     tags: str | None = None
+    activities: List[ActivityFeedback] | None = None
 
     class Config:
         from_attributes = True

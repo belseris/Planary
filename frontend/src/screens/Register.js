@@ -6,7 +6,7 @@ import { registerApi } from "../auth";
 export default function RegisterScreen({ navigation }) {
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
-  const [gender, setGender] = useState(""); // --- แก้ไข: เริ่มต้นเป็นค่าว่าง
+  const [gender, setGender] = useState("ชาย"); // Default เป็น "ชาย"
   const [age, setAge] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -15,6 +15,10 @@ export default function RegisterScreen({ navigation }) {
     // --- เพิ่ม: ตรวจสอบว่าเลือกเพศแล้วหรือยัง ---
     if (!gender) {
       Alert.alert("ข้อมูลไม่ครบถ้วน", "กรุณาเลือกเพศ");
+      return;
+    }
+    if (!age || Number(age) < 1 || Number(age) > 120) {
+      Alert.alert("ข้อมูลไม่ครบถ้วน", "กรุณาใส่อายุระหว่าง 1-120");
       return;
     }
     if (password !== confirm) {
@@ -33,7 +37,9 @@ export default function RegisterScreen({ navigation }) {
       Alert.alert("สำเร็จ", "ลงทะเบียนเรียบร้อยแล้ว\nกรุณาเข้าสู่ระบบ");
       navigation.replace("Login");
     } catch (e) {
-      Alert.alert("ลงทะเบียนไม่สำเร็จ", "กรุณาตรวจสอบข้อมูลและลองอีกครั้ง");
+      console.error("Register error:", e);
+      const errorMsg = typeof e === 'string' ? e : (e?.detail || e?.message || "กรุณาตรวจสอบข้อมูลและลองอีกครั้ง");
+      Alert.alert("ลงทะเบียนไม่สำเร็จ", errorMsg);
     }
   };
 

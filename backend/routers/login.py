@@ -7,7 +7,7 @@ from schemas.login import LoginRequest, TokenResponse
 
 router = APIRouter(prefix="/login", tags=["login"])
 
-@router.post("", response_model=TokenResponse)
+@router.post("/token", response_model=TokenResponse)
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == payload.email).first()
     if not user or not verify_password(payload.password, user.password_hash):

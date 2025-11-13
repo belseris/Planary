@@ -7,13 +7,14 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import LoginScreen from "./src/screens/Login";
 import RegisterScreen from "./src/screens/Register";
-import HomeDiaryScreen from "./src/screens/Home";
+import DiaryScreen from "./src/screens/Diary";
 import ProfileScreen from "./src/screens/Profile";
 import EditProfileScreen from "./src/screens/EditProfile";
 import EditDiaryScreen from "./src/screens/EditDiary";
 import ActivitiesScreen from "./src/screens/Activities";
 import EditActivity from "./src/screens/EditActivity";
-import ActivityUpdata from "./src/screens/ActivityUpdata";
+import ActivityDetailScreen from "./src/screens/ActivityDetail";
+import EditRoutineScreen from "./src/screens/EditRoutine";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -48,7 +49,7 @@ function MainTabs() {
         })}
       >
         <Tab.Screen name="กิจกรรม" component={ActivitiesScreen} />
-        <Tab.Screen name="บันทึก" component={HomeDiaryScreen} />
+        <Tab.Screen name="บันทึก" component={DiaryScreen} />
         <Tab.Screen name="แนวโน้ม" component={DummyScreen} />
         <Tab.Screen name="โปรไฟล์" component={ProfileScreen} />
       </Tab.Navigator>
@@ -81,7 +82,8 @@ export default function App() {
         <Stack.Screen name="EditDiary" component={EditDiaryScreen} options={{ title: "การบันทึก" }} />
         <Stack.Screen name="Activities" component={ActivitiesScreen} options={{ title: "กิจกรรม" }} />
         <Stack.Screen name="EditActivity" component={EditActivity} options={{ title: "สิ่งที่ต้องทำ" }} />
-        <Stack.Screen name="ActivityUpdata" component={ActivityUpdata} options={{ title: "รายละเอียดกิจกรรม" }} />
+        <Stack.Screen name="ActivityDetail" component={ActivityDetailScreen} options={{ title: "รายละเอียดกิจกรรม" }} />
+        <Stack.Screen name="EditRoutine" component={EditRoutineScreen} options={{ title: "แม่แบบกิจกรรม" }} />
       </Stack.Navigator>
     </NavigationContainer>
   );

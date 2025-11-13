@@ -1,30 +1,28 @@
 // src/diary.js
+import apiClient from './apiClient'; // ✅ 1. เปลี่ยน import มาใช้ apiClient
 
-import { api } from "./api"; // << ตรวจสอบ path ไปยังไฟล์ axios instance ของคุณ
-
-export async function listDiaries({ startDate, endDate }) {
-  const params = new URLSearchParams();
-  if (startDate) params.append("start_date", startDate);
-  if (endDate) params.append("end_date", endDate);
-  const res = await api.get(`/diary?${params.toString()}`);
-  return res.data;
+export function listDiaries({ startDate, endDate }) {
+  // ✅ 2. สร้าง object params ให้ axios จัดการ
+  const params = {
+    start_date: startDate,
+    end_date: endDate
+  };
+  // ✅ 3. ไม่ต้องใช้ async/await หรือ .data
+  return apiClient.get('/diary', { params });
 }
 
-export async function getDiary(id) {
-  const res = await api.get(`/diary/${id}`);
-  return res.data;
+export function getDiary(id) {
+  return apiClient.get(`/diary/${id}`);
 }
 
-export async function createDiary(payload) {
-  const res = await api.post("/diary", payload);
-  return res.data;
+export function createDiary(payload) {
+  return apiClient.post("/diary", payload);
 }
 
-export async function updateDiary(id, payload) {
-  const res = await api.put(`/diary/${id}`, payload);
-  return res.data;
+export function updateDiary(id, payload) {
+  return apiClient.put(`/diary/${id}`, payload);
 }
 
-export async function deleteDiary(id) {
-  await api.delete(`/diary/${id}`);
+export function deleteDiary(id) {
+  return apiClient.delete(`/diary/${id}`);
 }

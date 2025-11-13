@@ -1,6 +1,6 @@
 import uuid
-from sqlalchemy import Column, String, Integer, Date, Time, DateTime, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, String, Integer, Date, Time, DateTime, ForeignKey, JSON
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.sql import func
 from db.session import Base
 
@@ -16,6 +16,7 @@ class Diary(Base):
     detail = Column(String(2000), nullable=True)
     mood = Column(String(20), nullable=False)     
     tags = Column(String(255), nullable=True)     
+    activities = Column(JSONB, nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

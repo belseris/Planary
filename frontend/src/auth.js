@@ -1,35 +1,64 @@
-import { api, BASE_URL } from "./api";
+// src/auth.js
+import axios from 'axios';
+import apiClient, { BASE_URL } from './apiClient';
 
-export async function registerApi(payload) {
-  const res = await api.post("/register", payload);
-  return res.data;
-}
-export async function loginApi(payload) {
-  const res = await api.post("/login", payload);
-  return res.data;
-}
-export async function meApi() {
-  const res = await api.get("/profile/me");
-  return res.data;
-}
-export async function updateProfileApi(payload) {
-  const res = await api.put("/profile/update", payload);
-  return res.data;
-}
-export async function changePasswordApi(payload) {
-  const res = await api.patch("/profile/password", payload);
-  return res.data;
-}
-export async function uploadAvatarApi(fileUri) {
-  const filename = fileUri.split("/").pop();
-  const form = new FormData();
-  form.append("file", { uri: fileUri, name: filename, type: "image/jpeg" });
-  const res = await fetch(`${BASE_URL}/profile/avatar`, {
-    method: "POST",
-    headers: { "Content-Type": "multipart/form-data", Authorization: `Bearer ${await AsyncStorage.getItem("token")}` },
-    body: form,
-  });
-  if (!res.ok) throw new Error("อัปโหลดรูปไม่สำเร็จ");
-  return await res.json();
-}
+export const loginApi = async (credentials) => {
+  try {
+    const response = await axios.post(`${BASE_URL}/login/token`, {
+      email: credentials.email,
+      password: credentials.password,
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Login error full:", {
+      message: error.message,
+      code: error.code,
+      request: error.request,
+      response: error.response?.data,
+      status: error.response?.status,
+    });
+    // rethrow original error so caller can inspect response/request
+    throw error;
+  }
+};
 
+export const registerApi = async (credentials) => {
+  try {
+    const payload = {
+      email: credentials.email,
+      username: credentials.username,
+      password: credentials.password,
+      confirm_password: credentials.confirm_password || credentials.confirmPassword,
+      gender: credentials.gender,
+      age: parseInt(credentials.age) || null,
+    };
+    console.log("Register payload:", payload);
+    const response = await axios.post(`${BASE_URL}/register`, payload);
+    return response.data;
+  } catch (error) {
+      console.error("Register error full:", {
+        message: error.message,
+        code: error.code,
+        request: error.request,
+        response: error.response?.data,
+        status: error.response?.status,
+      });
+      // rethrow original error so caller can inspect response/request
+      throw error;
+  }
+};
+
+// ดึงข้อมูลผู้ใช้ปัจจุบัน (ใช้สำหรับหน้า Profile)
+export const meApi = async () => {
+  try {
+    // apiClient จะใส่ Authorization header ให้จาก AsyncStorage
+    const data = await apiClient.get('/profile/me');
+    return data;
+  } catch (error) {
+    console.error('meApi error full:', {
+      message: error?.message,
+      response: error?.response || error,
+    });
+    throw error;
+  }
+};

@@ -1,25 +1,22 @@
-import { api } from "./api";
+// src/activities.js
+import apiClient from './apiClient'; // ✅ เปลี่ยนจาก api.js หรือ axios
 
-export async function listActivities(params = {}) {
-  const res = await api.get("/activities", { params });
-  return res.data;
-}
+export const listActivities = (params) => {
+  return apiClient.get('/activities', { params });
+};
 
-export async function getActivity(id) {
-  const res = await api.get(`/activities/${id}`);
-  return res.data;
-}
+export const createActivity = (data) => {
+  return apiClient.post('/activities', data);
+};
 
-export async function createActivity(payload) {
-  const res = await api.post("/activities", payload);
-  return res.data;
-}
+export const getActivity = (id) => {
+  return apiClient.get(`/activities/${id}`);
+};
 
-export async function updateActivity(id, payload) {
-  const res = await api.put(`/activities/${id}`, payload);
-  return res.data;
-}
+export const updateActivity = (id, data) => {
+  return apiClient.put(`/activities/${id}`, data);
+};
 
-export async function deleteActivity(id) {
-  await api.delete(`/activities/${id}`);
-}
+export const deleteActivity = (id) => {
+  return apiClient.delete(`/activities/${id}`);
+};

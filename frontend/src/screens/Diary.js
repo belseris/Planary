@@ -4,7 +4,7 @@ import React, { useState, useCallback } from "react";
 import { View, Text, SectionList, TouchableOpacity, StyleSheet, ActivityIndicator, SafeAreaView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
-import { listDiaries } from "../api/diary"; // Path ที่ถูกต้อง
+import { listDiaries } from "../diary";
 
 const MONTHS = [ "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค." ];
 const DAYS = ["วันอาทิตย์", "วันจันทร์", "วันอังคาร", "วันพุธ", "วันพฤหัสบดี", "วันศุกร์", "วันเสาร์"];
