@@ -8,7 +8,10 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 // 1. Import `deleteDiary` เข้ามาใช้งาน
 import { getDiary, createDiary, updateDiary, deleteDiary } from "../diary"; 
-import { listActivities } from "../activities"; 
+import { listActivities } from "../activities";
+// 2. Import 2D Mood System + Summary Generator
+import { MOOD_CATEGORIES, getMoodTagsForScore } from "../moodSystem";
+import { generateActivitySummary } from "../summarizeActivities"; 
 
 // --- Star Rating ---
 const StarRating = ({ value, onChange }) => (
@@ -38,8 +41,13 @@ export default function EditDiaryScreen({ route, navigation }) {
   const [mood, setMood] = useState(MOODS[0]);
   const [dayActivities, setDayActivities] = useState([]); 
   
+  // --- 2D Mood System ---
+  const [moodScore, setMoodScore] = useState(null); // 'good' | 'bad' | null
+  const [moodTags, setMoodTags] = useState([]); // ['😊', '🚀', ...]
+  
   const [loading, setLoading] = useState(!!id);
   const [isMoodModalVisible, setMoodModalVisible] = useState(false);
+  const [is2DMoodModalVisible, setIs2DMoodModalVisible] = useState(false);
 
   // โหลดข้อมูล
   const load = useCallback(async () => {
@@ -59,6 +67,10 @@ export default function EditDiaryScreen({ route, navigation }) {
         setTitle(diaryData.title);
         setDetail(diaryData.detail || "");
         setMood(diaryData.mood || MOODS[0]);
+        
+        // Load 2D Mood data
+        setMoodScore(diaryData.mood_score || null);
+        setMoodTags(diaryData.mood_tags || []);
 
         // Merge feedback ที่เคยบันทึกไว้
         const reviewedActivities = activitiesWithFeedback.map(act => {
@@ -69,6 +81,9 @@ export default function EditDiaryScreen({ route, navigation }) {
         });
         setDayActivities(reviewedActivities);
       } else {
+        // Draft mode: เติม summary อัตโนมัติ
+        const summary = generateActivitySummary(activitiesWithFeedback);
+        setDetail(summary);
         setDayActivities(activitiesWithFeedback);
       }
     } catch (e) {
@@ -96,6 +111,8 @@ export default function EditDiaryScreen({ route, navigation }) {
       title: title.trim(),
       detail: detail.trim(),
       mood,
+      mood_score: moodScore,
+      mood_tags: moodTags,
       activities: dayActivities.map(({ id, category, title, rating, activityMood }) => ({
         id, category, title, rating, activityMood,
       })),
@@ -195,6 +212,64 @@ export default function EditDiaryScreen({ route, navigation }) {
             <Text style={styles.moodEmoji}>{mood}</Text>
           </TouchableOpacity>
         </View>
+
+        {/* --- 2D Mood System Section --- */}
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>📊 ประเมินวันของคุณ</Text>
+          
+          {/* มิติที่ 1: Good / Bad */}
+          <View style={styles.moodScoreContainer}>
+            <TouchableOpacity 
+              style={[styles.moodScoreButton, moodScore === 'good' && styles.moodScoreButtonActive]}
+              onPress={() => {
+                setMoodScore('good');
+                setMoodTags([]); // reset tags
+              }}
+            >
+              <Text style={styles.moodScoreEmoji}>👍</Text>
+              <Text style={styles.moodScoreLabel}>วันที่ดี</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.moodScoreButton, moodScore === 'bad' && styles.moodScoreButtonActive]}
+              onPress={() => {
+                setMoodScore('bad');
+                setMoodTags([]); // reset tags
+              }}
+            >
+              <Text style={styles.moodScoreEmoji}>👎</Text>
+              <Text style={styles.moodScoreLabel}>วันที่ไม่ดี</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* มิติที่ 2: Emoji Tags (แสดง ถ้า moodScore ถูกเลือก) */}
+          {moodScore && (
+            <View style={styles.moodTagsSection}>
+              <Text style={styles.moodTagsTitle}>สาเหตุ (เลือกได้หลายอัน):</Text>
+              <View style={styles.moodTagsGrid}>
+                {getMoodTagsForScore(moodScore).map((tag) => {
+                  const isSelected = moodTags.includes(tag.emoji);
+                  return (
+                    <TouchableOpacity
+                      key={tag.emoji}
+                      style={[styles.moodTag, isSelected && styles.moodTagSelected]}
+                      onPress={() => {
+                        if (isSelected) {
+                          setMoodTags(moodTags.filter(t => t !== tag.emoji));
+                        } else {
+                          setMoodTags([...moodTags, tag.emoji]);
+                        }
+                      }}
+                    >
+                      <Text style={styles.moodTagEmoji}>{tag.emoji}</Text>
+                      <Text style={styles.moodTagLabel}>{tag.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          )}
+        </View>
         
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>กิจกรรมของวันนี้</Text>
@@ -255,4 +330,71 @@ const styles = StyleSheet.create({
   moodPicker: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-around' },
   moodOption: { padding: 10, margin: 5 },
   moodEmojiOption: { fontSize: 40 },
+  
+  // --- 2D Mood System Styles ---
+  moodScoreContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 16,
+  },
+  moodScoreButton: {
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    borderWidth: 2,
+    borderColor: '#ddd',
+    flex: 1,
+    marginHorizontal: 8,
+  },
+  moodScoreButtonActive: {
+    backgroundColor: '#e8f4f8',
+    borderColor: '#1f6f8b',
+  },
+  moodScoreEmoji: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  moodScoreLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#333',
+  },
+  moodTagsSection: {
+    marginTop: 12,
+  },
+  moodTagsTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#555',
+    marginBottom: 8,
+  },
+  moodTagsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  moodTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  moodTagSelected: {
+    backgroundColor: '#1f6f8b',
+    borderColor: '#1f6f8b',
+  },
+  moodTagEmoji: {
+    fontSize: 18,
+    marginRight: 4,
+  },
+  moodTagLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#333',
+  },
 });

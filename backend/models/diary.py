@@ -14,7 +14,12 @@ class Diary(Base):
     time = Column(Time, nullable=False)           
     title = Column(String(200), nullable=False)
     detail = Column(String(2000), nullable=True)
-    mood = Column(String(20), nullable=False)     
+    mood = Column(String(20), nullable=True)
+    
+    # 2D Mood System
+    mood_score = Column(String(10), nullable=True)  # 'good' | 'bad'
+    mood_tags = Column(JSONB, nullable=True)  # ['😊', '🚀', ...]
+    
     tags = Column(String(255), nullable=True)     
     activities = Column(JSONB, nullable=True)
 

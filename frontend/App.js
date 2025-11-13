@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { initAutoDiary } from "./src/autoDiaryService";
 
 import LoginScreen from "./src/screens/Login";
 import RegisterScreen from "./src/screens/Register";
@@ -63,6 +64,11 @@ export default function App() {
     (async () => {
       const token = await AsyncStorage.getItem("token");
       setInitial(token ? "Main" : "Login");
+      
+      // เมื่อ user logged in และเปิดแอป ให้ทำ auto-diary
+      if (token) {
+        await initAutoDiary();
+      }
     })();
   }, []);
 
