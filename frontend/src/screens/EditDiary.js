@@ -178,6 +178,11 @@ export default function EditDiaryScreen({ route, navigation }) {
 
   return (
     <View style={styles.screen}>
+      {__DEV__ && (
+        <View style={styles.devBadge}>
+          <Text style={styles.devBadgeText}>DEV: Smart Diary v2</Text>
+        </View>
+      )}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="close" size={28} color="#555" />
@@ -206,12 +211,7 @@ export default function EditDiaryScreen({ route, navigation }) {
           <TextInput style={styles.detailInput} value={detail} onChangeText={setDetail} multiline placeholder="รายละเอียด..." placeholderTextColor="#ccc" />
         </View>
 
-        <View style={styles.card}>
-          <TouchableOpacity style={styles.moodButton} onPress={() => setMoodModalVisible(true)}>
-            <Text style={styles.moodButtonText}>+ ความรู้สึกวันนี้</Text>
-            <Text style={styles.moodEmoji}>{mood}</Text>
-          </TouchableOpacity>
-        </View>
+        {/* ความรู้สึกถูกซ่อนตามคำขอ */}
 
         {/* --- 2D Mood System Section --- */}
         <View style={styles.card}>
@@ -271,19 +271,7 @@ export default function EditDiaryScreen({ route, navigation }) {
           )}
         </View>
         
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>กิจกรรมของวันนี้</Text>
-          {dayActivities.length > 0 ? dayActivities.map(act => (
-            <View key={act.id} style={styles.activityItem}>
-              <Ionicons name="ellipse" size={10} color="#888" style={{marginRight: 8}} />
-              <Text style={styles.activityTitle} numberOfLines={1}>{act.title}</Text>
-              <StarRating value={act.rating} onChange={(val) => handleActivityUpdate(act.id, 'rating', val)} />
-              <TouchableOpacity onPress={() => handleActivityUpdate(act.id, 'activityMood', act.activityMood === "🙂" ? "😄" : "🙂")}>
-                <Text style={styles.moodEmoji}>{act.activityMood}</Text>
-              </TouchableOpacity>
-            </View>
-          )) : <Text style={styles.emptyText}>ไม่มีกิจกรรมในวันนี้</Text>}
-        </View>
+        {/* กิจกรรมของวันนี้ถูกซ่อนตามคำขอ */}
       </ScrollView>
 
       <Modal visible={isMoodModalVisible} transparent animationType="fade">
@@ -397,4 +385,10 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#333',
   },
+  devBadge: {
+    backgroundColor: '#ffeedd',
+    paddingVertical: 6,
+    alignItems: 'center'
+  },
+  devBadgeText: { color: '#993300', fontWeight: '700' },
 });

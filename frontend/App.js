@@ -16,6 +16,7 @@ import ActivitiesScreen from "./src/screens/Activities";
 import EditActivity from "./src/screens/EditActivity";
 import ActivityDetailScreen from "./src/screens/ActivityDetail";
 import EditRoutineScreen from "./src/screens/EditRoutine";
+import TrendsScreen from "./src/screens/Trends";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -51,7 +52,7 @@ function MainTabs() {
       >
         <Tab.Screen name="กิจกรรม" component={ActivitiesScreen} />
         <Tab.Screen name="บันทึก" component={DiaryScreen} />
-        <Tab.Screen name="แนวโน้ม" component={DummyScreen} />
+        <Tab.Screen name="แนวโน้ม">{props => <TrendsScreen {...props} />}</Tab.Screen>
         <Tab.Screen name="โปรไฟล์" component={ProfileScreen} />
       </Tab.Navigator>
   );
