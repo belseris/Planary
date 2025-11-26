@@ -1,9 +1,30 @@
+"""
+routine_activities.py - API Endpoints สำหรับจัดการแม่แบบกิจกรรมประจำ (Routine Activities)
+
+หน้าที่หลัก:
+- GET /routine-activities - ดึงรายการแม่แบบกิจกรรมทั้งหมด (filter ตามวันได้)
+- POST /routine-activities - สร้างแม่แบบกิจกรรมใหม่
+- PUT /routine-activities/{id} - แก้ไขแม่แบบกิจกรรม
+- DELETE /routine-activities/{id} - ลบแม่แบบกิจกรรม
+
+Routine Activity คืออะไร:
+- เป็น "แม่แบบ" กิจกรรมที่ทำซ้ำทุกสัปดาห์
+- ระบุวันในสัปดาห์ (mon, tue, wed, ...) และเวลา
+- เช่น "ออกกำลังกาย" ทุกวันจันทร์ เวลา 06:00
+- ระบบจะสร้าง Activity จริงๆ จากแม่แบบนี้อัตโนมัติใน activities router
+
+ความสัมพันธ์กับ Activity:
+- RoutineActivity = แม่แบบ (template)
+- Activity = กิจกรรมจริงที่ instantiate จากแม่แบบ
+- Activity.routine_id ชี้กลับมาที่ RoutineActivity.id
+"""
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from models.routine_activity import RoutineActivity
 from models.user import User
 from db.session import get_db
-from routers.profile import current_user # สมมติว่าไฟล์นี้มี current_user
+from routers.profile import current_user # Dependency สำหรับตรวจสอบ user ที่ login
 from schemas.routine_activity import RoutineActivityCreate, RoutineActivityResponse, RoutineActivityUpdate
 from datetime import datetime
 from uuid import UUID
@@ -80,13 +101,25 @@ def delete_routine(
 ):
     """
     ลบแม่แบบกิจกรรมประจำวัน
+    ก่อนลบจะตั้งค่า routine_id ของกิจกรรมที่เกี่ยวข้องเป็น NULL
+    เพื่อให้กิจกรรมเหล่านั้นกลายเป็นกิจกรรมปกติ (ไม่ได้เชื่อมกับแม่แบบแล้ว)
     """
+    from models.activity import Activity
+    
     row = db.query(RoutineActivity).filter(
         RoutineActivity.id == routine_id, 
         RoutineActivity.user_id == me.id
     ).first()
     if not row:
         raise HTTPException(404, "ไม่พบกิจกรรมประจำวัน")
+    
+    # ตั้งค่า routine_id เป็น NULL สำหรับกิจกรรมที่สร้างจากแม่แบบนี้
+    db.query(Activity).filter(
+        Activity.routine_id == routine_id,
+        Activity.user_id == me.id
+    ).update({"routine_id": None}, synchronize_session=False)
+    
+    # ลบแม่แบบ
     db.delete(row)
     db.commit()
     return

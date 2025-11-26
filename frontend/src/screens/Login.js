@@ -1,8 +1,27 @@
+/**
+ * Login.js - หน้าจอเข้าสู่ระบบ (Login Screen)
+ * 
+ * หน้าที่หลัก:
+ * - รับ email และ password จาก user
+ * - เรียก POST /login/token API
+ * - เก็บ JWT token ลงใน AsyncStorage
+ * - Navigate ไปหน้า Main (Tab Navigator) หลัง login สำเร็จ
+ * 
+ * Components:
+ * - TextInputField: Custom input component (มี label และ styling)
+ * - Image: แสดงโลโก้แอป
+ * - Button: ปุ่มเข้าสู่ระบบ
+ * - TouchableOpacity: ปุ่ม "สร้างบัญชี" ไปหน้า Register
+ * 
+ * Error Handling:
+ * - ถ้า login ไม่สำเร็จ (401) แสดง Alert ให้ user ทราบ
+ */
+
 import React, { useState } from "react";
 import { View, Text, Button, Alert, TouchableOpacity, Image, StyleSheet } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import TextInputField from "../components/TextInputField";
-import { loginApi } from "../auth";
+import { loginApi } from "../api";  // API สำหรับ login
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState("");
@@ -10,7 +29,16 @@ export default function LoginScreen({ navigation }) {
 
   const onLogin = async () => {
     try {
-      const data = await loginApi({ email, password });
+      // Trim email and password to remove accidental whitespace or Thai characters
+      const trimmedEmail = email.trim().replace(/[^\x00-\x7F]/g, ''); // Remove non-ASCII characters
+      const trimmedPassword = password.trim();
+      
+      if (!trimmedEmail || !trimmedPassword) {
+        Alert.alert("ข้อมูลไม่ครบ", "กรุณากรอกอีเมลและรหัสผ่าน");
+        return;
+      }
+      
+      const data = await loginApi({ email: trimmedEmail, password: trimmedPassword });
       await AsyncStorage.setItem("token", data.access_token);
       navigation.replace("Main");
     } catch (e) {

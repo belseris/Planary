@@ -1,20 +1,23 @@
 // screens/ActivityDetailScreen.js
 import React, { useEffect, useState, useCallback } from "react";
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, TextInput } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { getActivity, deleteActivity, updateActivity } from "../activities";
+import { getActivity, deleteActivity, updateActivity } from "../api";
 import { CATEGORIES, STATUSES, STATUS_OPTIONS } from "../utils/constants"; // ✅ 1. Import จาก constants
 
 export default function ActivityDetailScreen({ route, navigation }) {
   const { id } = route.params;
   const [activity, setActivity] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [editingNotes, setEditingNotes] = useState(false);
+  const [notesText, setNotesText] = useState("");
 
   const loadActivity = useCallback(async () => {
     try {
       setLoading(true);
       const data = await getActivity(id);
       setActivity(data);
+      setNotesText(data.notes || "");
     } catch (error) {
       Alert.alert("Error", "ไม่สามารถโหลดข้อมูลได้");
       navigation.goBack();
@@ -81,6 +84,17 @@ export default function ActivityDetailScreen({ route, navigation }) {
     } catch {
       Alert.alert("Error", "ไม่สามารถอัปเดตงานย่อยได้");
       setActivity(originalActivity); 
+    }
+  };
+
+  const handleSaveNotes = async () => {
+    try {
+      await updateActivity(id, { notes: notesText });
+      setActivity({ ...activity, notes: notesText });
+      setEditingNotes(false);
+      Alert.alert("สำเร็จ", "บันทึกรายละเอียดแล้ว");
+    } catch (error) {
+      Alert.alert("เกิดข้อผิดพลาด", "ไม่สามารถบันทึกรายละเอียดได้");
     }
   };
 
@@ -151,10 +165,39 @@ export default function ActivityDetailScreen({ route, navigation }) {
       
       {/* Notes */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>รายละเอียด</Text>
-        <Text style={activity.notes ? styles.notesText : styles.emptyText}>
-          {activity.notes || "ไม่มีรายละเอียดเพิ่มเติม"}
-        </Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <Text style={styles.sectionTitle}>รายละเอียด</Text>
+          {!editingNotes ? (
+            <TouchableOpacity onPress={() => setEditingNotes(true)}>
+              <Ionicons name="create-outline" size={24} color="#1f6f8b" />
+            </TouchableOpacity>
+          ) : (
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity onPress={() => { setEditingNotes(false); setNotesText(activity.notes || ""); }}>
+                <Ionicons name="close" size={24} color="#999" />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleSaveNotes}>
+                <Ionicons name="checkmark" size={24} color="#52c41a" />
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+        
+        {editingNotes ? (
+          <TextInput
+            style={styles.notesInput}
+            value={notesText}
+            onChangeText={setNotesText}
+            placeholder="เขียนรายละเอียดเพิ่มเติม..."
+            multiline
+            numberOfLines={6}
+            textAlignVertical="top"
+          />
+        ) : (
+          <Text style={activity.notes ? styles.notesText : styles.emptyText}>
+            {activity.notes || "ไม่มีรายละเอียดเพิ่มเติม"}
+          </Text>
+        )}
       </View>
     </ScrollView>
   );
@@ -178,4 +221,5 @@ const styles = StyleSheet.create({
   subtaskText: { flex: 1, marginLeft: 12, fontSize: 16 },
   subtaskTextCompleted: { textDecorationLine: 'line-through', color: '#aaa' },
   notesText: { fontSize: 16, color: '#555', lineHeight: 24, backgroundColor: '#f9f9f9', padding: 16, borderRadius: 8 },
+  notesInput: { fontSize: 16, color: '#333', lineHeight: 24, backgroundColor: '#fff', padding: 16, borderRadius: 8, borderWidth: 1, borderColor: '#1f6f8b', minHeight: 120 },
 });

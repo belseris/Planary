@@ -1,11 +1,33 @@
+/**
+ * Profile.js - หน้าจอโปรไฟล์ (Profile Screen)
+ * 
+ * หน้าที่หลัก:
+ * - แสดงข้อมูล user (username, email, gender, age, avatar)
+ * - แสดงรายการ "แม่แบบกิจกรรมประจำ" (Routine Activities) จัดกลุ่มตามวัน
+ * - มี Week Selector เพื่อดูแม่แบบของแต่ละวัน
+ * - ปุ่มแก้ไขโปรไฟล์ (navigate ไป EditProfile)
+ * - ปุ่ม Logout
+ * - ปุ่ม + สร้างแม่แบบใหม่ (navigate ไป EditRoutine mode=create)
+ * 
+ * Components:
+ * - useWeek: Hook สำหรับคำนวณวันในสัปดาห์
+ * - WeekSelector: Component แสดงปุ่มเลือกวัน (จันทร์-อาทิตย์)
+ * - ProfileRoutineCard: การ์ดแสดงแม่แบบกิจกรรม 1 รายการ
+ * - ProfileScreen: main component (มี header, avatar, routine list)
+ * 
+ * Data Flow:
+ * 1. เรียก GET /profile/me เพื่อดึงข้อมูล user
+ * 2. เรียก GET /routine-activities?day_of_week=... เพื่อดึงแม่แบบของวันที่เลือก
+ * 3. แสดงผลในรูปแบบ ScrollView พร้อม cards
+ */
+
 // screens/ProfileScreen.js
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { View, Text, StyleSheet, Alert, ScrollView, ActivityIndicator, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { meApi } from "../auth";
-import { listRoutineActivities } from "../routines"; // ✅ 1. Import API ของ Routine
+import { meApi, listRoutineActivities } from "../api";
 import { CATEGORIES, TH_DAYS } from "../utils/constants";
 import { toDateString, getStartOfWeek } from "../utils/dateUtils";
 

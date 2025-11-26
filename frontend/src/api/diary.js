@@ -1,13 +1,11 @@
-// src/diary.js
-import apiClient from './apiClient'; // ✅ 1. เปลี่ยน import มาใช้ apiClient
+// API client for diary
+import apiClient from './client';
 
 export function listDiaries({ startDate, endDate }) {
-  // ✅ 2. สร้าง object params ให้ axios จัดการ
   const params = {
     start_date: startDate,
     end_date: endDate
   };
-  // ✅ 3. ไม่ต้องใช้ async/await หรือ .data
   return apiClient.get('/diary', { params });
 }
 

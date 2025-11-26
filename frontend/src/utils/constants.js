@@ -11,12 +11,12 @@ export const CATEGORIES = [
   // คุณสามารถเพิ่มหมวดหมู่อื่นๆ ที่นี่
 ];
 
-// 2. สถานะ (STATUSES) - เป็นแหล่งข้อมูลเดียว
+// 2. สถานะ (STATUSES) - เป็นแหล่งข้อมูลเดียว (ตรงกับ Backend)
 export const STATUSES = {
-  normal:  { label: 'ยังไม่เริ่ม', backgroundColor: '#f0f0f0', color: '#595959' },
-  warning: { label: 'กำลังทำ',   backgroundColor: '#fffbe6', color: '#faad14' },
-  success: { label: 'เสร็จแล้ว',  backgroundColor: '#f6ffed', color: '#52c41a' },
-  danger:  { label: 'ข้าม/ยกเลิก', backgroundColor: '#fff1f0', color: '#ff4d4f' },
+  normal:    { label: 'ยังไม่เริ่ม',   backgroundColor: '#f0f0f0', color: '#595959' },
+  urgent:    { label: 'กำลังทำ',      backgroundColor: '#fffbe6', color: '#faad14' },
+  done:      { label: 'เสร็จแล้ว',    backgroundColor: '#f6ffed', color: '#52c41a' },
+  cancelled: { label: 'ข้าม/ยกเลิก',  backgroundColor: '#fff1f0', color: '#ff4d4f' },
 };
 
 // 3. ตัวเลือกสถานะสำหรับ Dropdown/Menu

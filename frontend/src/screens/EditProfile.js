@@ -2,8 +2,7 @@ import React, { useState } from "react";
 import { View, Text, Button, Alert, Image } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import TextInputField from "../components/TextInputField";
-import { updateProfileApi, changePasswordApi, uploadAvatarApi } from "../auth";
-import { BASE_URL } from "../api";
+import { updateProfileApi, changePasswordApi, uploadAvatarApi, BASE_URL } from "../api";
 
 export default function EditProfileScreen({ route, navigation }) {
   const { me } = route.params;

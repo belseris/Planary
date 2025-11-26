@@ -3,7 +3,8 @@ import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { View, Text, ScrollView, TextInput, Switch, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { createActivity, getActivity, updateActivity } from "../activities";
+import TimePicker from "../components/TimePicker";
+import { createActivity, getActivity, updateActivity } from "../api";
 import { CATEGORIES, STATUSES } from "../utils/constants"; // ✅ 1. Import จาก constants
 import { toDateString, toTimeString } from "../utils/dateUtils";
 
@@ -62,7 +63,7 @@ export default function EditActivityScreen({ route, navigation }) {
     }
     // Normalize subtasks: strip ephemeral fields (editing, editText)
     const normalizedSubtasks = (form.subtasks || []).map(s => ({ id: s.id, text: s.text, completed: !!s.completed }));
-    const payload = {
+    const basePayload = {
       ...form,
       subtasks: normalizedSubtasks,
       time: form.all_day ? null : `${form.time}:00`,
@@ -70,10 +71,16 @@ export default function EditActivityScreen({ route, navigation }) {
     };
 
     try {
-      if (isEditMode) { await updateActivity(id, payload); } 
-      else { await createActivity(payload); }
+      if (isEditMode) {
+        const { date, ...updatePayload } = basePayload; // omit `date` on update to satisfy API
+        await updateActivity(id, updatePayload);
+      } else {
+        await createActivity(basePayload);
+      }
       navigation.goBack();
-    } catch (error) { Alert.alert("เกิดข้อผิดพลาด", "ไม่สามารถบันทึกข้อมูลได้"); }
+    } catch (error) {
+      Alert.alert("เกิดข้อผิดพลาด", "ไม่สามารถบันทึกข้อมูลได้");
+    }
   };
   
   const selectedCategory = useMemo(() => CATEGORIES.find(c => c.name === form.category) || CATEGORIES[0], [form.category]);
@@ -152,12 +159,18 @@ export default function EditActivityScreen({ route, navigation }) {
           </View>
           {!form.all_day && (
             <View style={[styles.row, { paddingLeft: 40 }]}>
-              <TouchableOpacity onPress={() => setShowTimePicker(true)}>
-                <Text style={styles.valueText}>{form.time}</Text>
+              <TouchableOpacity onPress={() => setShowTimePicker(true)} style={styles.timeButton}>
+                <Ionicons name="time" size={20} color="#1f6f8b" style={{ marginRight: 8 }} />
+                <Text style={styles.timeText}>{form.time}</Text>
               </TouchableOpacity>
             </View>
           )}
-          {showTimePicker && <DateTimePicker value={new Date()} mode="time" is24Hour={true} onChange={(e, t) => { setShowTimePicker(false); if (t) handleInputChange("time", toTimeString(t)); }} />}
+          <TimePicker
+            visible={showTimePicker}
+            value={form.time}
+            onChange={(time) => handleInputChange("time", time)}
+            onClose={() => setShowTimePicker(false)}
+          />
         </View>
 
         {/* Category Selector */}
@@ -259,29 +272,188 @@ export default function EditActivityScreen({ route, navigation }) {
   );
 }
 
-// (Styles ใช้ของเดิมได้เลย)
 const styles = StyleSheet.create({
-  container: { padding: 16, paddingBottom: 100 },
-  saveButton: { backgroundColor: '#1f6f8b', padding: 16, margin: 16, borderRadius: 12, alignItems: 'center' },
-  saveButtonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
-  titleSection: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  categoryEmoji: { fontSize: 32, marginRight: 12 },
-  titleInput: { flex: 1, fontSize: 24, fontWeight: 'bold', borderBottomWidth: 1, borderBottomColor: '#f0f0f0', paddingBottom: 8 },
-  section: { backgroundColor: '#f9f9f9', borderRadius: 12, padding: 16, marginBottom: 16 },
-  sectionTitle: { fontSize: 16, fontWeight: '600', marginBottom: 12, color: '#444' },
-  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12 },
-  label: { flex: 1, marginLeft: 16, fontSize: 16 },
-  valueText: { fontSize: 16, fontWeight: '500' },
-  chipContainer: { flexDirection: 'row', flexWrap: 'wrap' },
-  chip: { backgroundColor: '#f0f0f0', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, margin: 4 },
-  chipSelected: { backgroundColor: '#1f6f8b' },
-  chipText: { color: '#333' },
-  chipTextSelected: { color: '#fff' },
-  // Subtasks & Notes styles
-  subtaskInput: { flex: 1, backgroundColor: '#fff', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: '#eee' },
-  addSubtaskButton: { marginLeft: 8, backgroundColor: '#1f6f8b', padding: 10, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
-  subtaskRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 12, backgroundColor: '#fff', borderRadius: 8, marginBottom: 8, borderWidth: 1, borderColor: '#f0f0f0' },
-  subtaskText: { flex: 1, fontSize: 16 },
-  subtaskTextCompleted: { textDecorationLine: 'line-through', color: '#aaa' },
-  notesInput: { backgroundColor: '#fff', borderRadius: 8, padding: 12, borderWidth: 1, borderColor: '#eee', minHeight: 100 },
+  container: { 
+    padding: 20, 
+    paddingBottom: 100,
+    backgroundColor: '#f8f9fa',
+  },
+  saveButton: { 
+    backgroundColor: '#1f6f8b',
+    padding: 18,
+    margin: 20,
+    borderRadius: 16,
+    alignItems: 'center',
+    shadowColor: '#1f6f8b',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  saveButtonText: { 
+    color: '#fff', 
+    fontSize: 18, 
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
+  },
+  titleSection: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    marginBottom: 20,
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  categoryEmoji: { 
+    fontSize: 40, 
+    marginRight: 16,
+  },
+  titleInput: { 
+    flex: 1, 
+    fontSize: 20, 
+    fontWeight: '600',
+    color: '#1a1a1a',
+    paddingVertical: 4,
+  },
+  section: { 
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  sectionTitle: { 
+    fontSize: 18, 
+    fontWeight: '700', 
+    marginBottom: 16, 
+    color: '#1a1a1a',
+    letterSpacing: 0.3,
+  },
+  row: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  label: { 
+    flex: 1, 
+    marginLeft: 16, 
+    fontSize: 16,
+    color: '#4a4a4a',
+    fontWeight: '500',
+  },
+  valueText: { 
+    fontSize: 16, 
+    fontWeight: '600',
+    color: '#1f6f8b',
+  },
+  chipContainer: { 
+    flexDirection: 'row', 
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  chip: { 
+    backgroundColor: '#f0f3f7',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    marginRight: 8,
+    marginBottom: 8,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  chipSelected: { 
+    backgroundColor: '#e8f4f8',
+    borderColor: '#1f6f8b',
+  },
+  chipText: { 
+    color: '#4a4a4a',
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  chipTextSelected: { 
+    color: '#1f6f8b',
+    fontWeight: '700',
+  },
+  subtaskInput: { 
+    flex: 1,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 15,
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+  },
+  addSubtaskButton: { 
+    marginLeft: 12,
+    backgroundColor: '#1f6f8b',
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#1f6f8b',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  subtaskRow: { 
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#e8e8e8',
+  },
+  subtaskText: { 
+    flex: 1, 
+    fontSize: 16,
+    color: '#2a2a2a',
+    marginLeft: 4,
+  },
+  subtaskTextCompleted: { 
+    textDecorationLine: 'line-through', 
+    color: '#999',
+  },
+  notesInput: { 
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 15,
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+    minHeight: 120,
+    textAlignVertical: 'top',
+  },
+  timeButton: { 
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e8f4f8',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#1f6f8b',
+  },
+  timeText: { 
+    fontSize: 18, 
+    fontWeight: '700', 
+    color: '#1f6f8b',
+    letterSpacing: 1,
+  },
 });

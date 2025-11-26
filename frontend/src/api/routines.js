@@ -1,14 +1,12 @@
-// สร้างไฟล์ใหม่ที่: src/routines.js
+// API client for routine activities
+import apiClient from './client';
 
-import apiClient from './apiClient';
-
-// ดึง "แม่แบบ" ทั้งหมด (สำหรับหน้า Profile)
+// List all routine activity templates
 export const listRoutineActivities = (params) => {
-  // params อาจจะเป็น { day_of_week: 'mon' } หรือไม่ส่งเลยก็ได้
   return apiClient.get('/routine-activities', { params });
 };
 
-// สร้าง "แม่แบบ" ใหม่
+// Create new routine activity template
 export const createRoutineActivity = (data) => {
   const payload = normalizeRoutinePayload(data);
   console.log('createRoutineActivity payload (normalized):', payload);
@@ -18,7 +16,7 @@ export const createRoutineActivity = (data) => {
   });
 };
 
-// อัปเดต "แม่แบบ"
+// Update routine activity template
 export const updateRoutineActivity = (id, data) => {
   const payload = normalizeRoutinePayload(data, /* allowPartial */ true);
   console.log('updateRoutineActivity payload (normalized):', id, payload);
@@ -28,10 +26,16 @@ export const updateRoutineActivity = (id, data) => {
   });
 };
 
+// Delete routine activity template
+export const deleteRoutineActivity = (id) => {
+  return apiClient.delete(`/routine-activities/${id}`);
+};
+
 // Normalize payload to match backend Pydantic schema exactly.
 // If allowPartial is true, we omit undefined/null fields so updates can be partial.
 export function normalizeRoutinePayload(data = {}, allowPartial = false) {
   const out = {};
+  
   // title: required on create, optional on update (if allowPartial)
   if (data.title !== undefined && data.title !== null) {
     const t = String(data.title || '').trim();
@@ -67,10 +71,32 @@ export function normalizeRoutinePayload(data = {}, allowPartial = false) {
     out.day_of_week = null;
   }
 
+  // notes: optional text field
+  if (data.notes !== undefined) {
+    const n = data.notes === null ? null : String(data.notes).trim();
+    out.notes = (n && n.length > 0) ? n : null;
+  } else if (!allowPartial) {
+    out.notes = null;
+  }
+
+  // subtasks: optional array of objects
+  if (data.subtasks !== undefined) {
+    if (Array.isArray(data.subtasks) && data.subtasks.length > 0) {
+      // Filter out empty subtasks and format them
+      out.subtasks = data.subtasks
+        .filter(st => st && st.text && st.text.trim().length > 0)
+        .map(st => ({
+          id: st.id || Date.now().toString(),
+          text: st.text.trim(),
+          completed: st.completed || false
+        }));
+      if (out.subtasks.length === 0) out.subtasks = null;
+    } else {
+      out.subtasks = null;
+    }
+  } else if (!allowPartial) {
+    out.subtasks = null;
+  }
+
   return out;
 }
-
-// ลบ "แม่แบบ"
-export const deleteRoutineActivity = (id) => {
-  return apiClient.delete(`/routine-activities/${id}`);
-};

@@ -1,11 +1,40 @@
+/**
+ * Activities.js - หน้าจอกิจกรรม (Activities Screen)
+ * 
+ * หน้าที่หลัก:
+ * - แสดงรายการกิจกรรมของวันที่เลือก (จัดกลุ่มตาม category)
+ * - มี Week Selector เพื่อเลือกดูกิจกรรมของแต่ละวัน
+ * - รองรับ Auto-Instantiate Routine Activities (สร้างจากแม่แบบอัตโนมัติ)
+ * - กดที่การ์ดเพื่อไปหน้า ActivityDetail (ดูรายละเอียด + แก้ไข)
+ * - ปุ่ม + สร้างกิจกรรมใหม่
+ * 
+ * Components:
+ * - useWeek: Hook สำหรับคำนวณวันในสัปดาห์
+ * - WeekSelector: Component แสดงปุ่มเลือกวัน (จันทร์-อาทิตย์)
+ * - CategorySection: หัวหมวดหมู่ (แสดง emoji + ชื่อหมวดหมู่)
+ * - ActivityCard: การ์ดแสดงกิจกรรม 1 รายการ (status, time, title)
+ * 
+ * Data Flow:
+ * 1. เลือกวันผ่าน Week Selector
+ * 2. เรียก GET /activities?qdate=YYYY-MM-DD
+ * 3. Backend จะ auto-instantiate routine activities ของวันนั้นให้อัตโนมัติ
+ * 4. แสดงผลใน SectionList จัดกลุ่มตาม category
+ * 
+ * Status Icons:
+ * - ✅ done: สีเขียว
+ * - 🔥 urgent: สีแดง
+ * - ⚠️ cancelled: สีเทา
+ * - ⚪ normal: สีน้ำเงิน
+ */
+
 // screens/ActivitiesScreen.js
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { View, Text, SectionList, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { listActivities } from "../activities"; // ✅ 1. Import API กิจกรรม
-import { CATEGORIES, STATUSES, TH_DAYS } from "../utils/constants"; // ✅ 2. Import จาก constants
-import { toDateString, getStartOfWeek } from "../utils/dateUtils";
+import { listActivities } from "../api";
+import { CATEGORIES, STATUSES, TH_DAYS } from "../utils/constants";  // Constants สำหรับ UI
+import { toDateString, getStartOfWeek } from "../utils/dateUtils";  // Date utilities
 
 // --- Components (useWeek, WeekSelector) ---
 const useWeek = (selectedDate) => {
@@ -19,15 +48,54 @@ const useWeek = (selectedDate) => {
   }, [selectedDate]);
 };
 
-const WeekSelector = ({ week, selectedDate, onDateSelect }) => (
-  <View style={styles.weekContainer}>
-    {week.map(({ date, dayIndex }) => (
-      <TouchableOpacity key={date} onPress={() => onDateSelect(date)} style={[styles.dayChip, selectedDate === date && styles.dayChipSelected]}>
-        <Text style={[styles.dayChipText, selectedDate === date && styles.dayChipTextSelected]}>{TH_DAYS[dayIndex]}</Text>
-      </TouchableOpacity>
-    ))}
-  </View>
-);
+const WeekSelector = ({ week, selectedDate, onDateSelect }) => {
+  const goToPreviousWeek = () => {
+    const current = new Date(selectedDate);
+    current.setDate(current.getDate() - 7);
+    onDateSelect(toDateString(current));
+  };
+
+  const goToNextWeek = () => {
+    const current = new Date(selectedDate);
+    current.setDate(current.getDate() + 7);
+    onDateSelect(toDateString(current));
+  };
+
+  const isCurrentWeek = () => {
+    const today = new Date();
+    const current = new Date(selectedDate);
+    const todayWeekStart = getStartOfWeek(today);
+    const currentWeekStart = getStartOfWeek(current);
+    return todayWeekStart.getTime() === currentWeekStart.getTime();
+  };
+
+  return (
+    <View>
+      <View style={styles.weekNavContainer}>
+        <TouchableOpacity onPress={goToPreviousWeek} style={styles.weekNavButton}>
+          <Ionicons name="chevron-back" size={24} color="#1f6f8b" />
+        </TouchableOpacity>
+        <Text style={styles.weekNavText}>
+          {week[0]?.date && `${new Date(week[0].date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })} - ${new Date(week[6].date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}`}
+        </Text>
+        <TouchableOpacity 
+          onPress={goToNextWeek} 
+          style={[styles.weekNavButton, isCurrentWeek() && styles.weekNavButtonDisabled]}
+          disabled={isCurrentWeek()}
+        >
+          <Ionicons name="chevron-forward" size={24} color={isCurrentWeek() ? "#ccc" : "#1f6f8b"} />
+        </TouchableOpacity>
+      </View>
+      <View style={styles.weekContainer}>
+        {week.map(({ date, dayIndex }) => (
+          <TouchableOpacity key={date} onPress={() => onDateSelect(date)} style={[styles.dayChip, selectedDate === date && styles.dayChipSelected]}>
+            <Text style={[styles.dayChipText, selectedDate === date && styles.dayChipTextSelected]}>{TH_DAYS[dayIndex]}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+};
 
 // --- ActivityCard (ฉบับแก้ไข) ---
 const ActivityCard = ({ item, onPress }) => {
@@ -132,6 +200,10 @@ const styles = StyleSheet.create({
     listContainer: { flex: 1 },
     loadingOverlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(247, 248, 250, 0.7)", justifyContent: "center", alignItems: "center" },
     headerContainer: { paddingHorizontal: 16, paddingTop: Platform.OS === 'android' ? 10 : 0, paddingBottom: 10, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
+    weekNavContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+    weekNavButton: { padding: 8, borderRadius: 8, backgroundColor: '#f5f5f5' },
+    weekNavButtonDisabled: { opacity: 0.3 },
+    weekNavText: { fontSize: 15, fontWeight: '600', color: '#333' },
     weekContainer: { flexDirection: "row", justifyContent: 'space-between' },
     dayChip: { flex: 1, paddingVertical: 8, borderRadius: 10, backgroundColor: "#f5f5f5", alignItems: "center", marginHorizontal: 2 },
     dayChipSelected: { backgroundColor: "#1f6f8b" },

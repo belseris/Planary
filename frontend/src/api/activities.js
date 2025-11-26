@@ -1,5 +1,5 @@
-// src/activities.js
-import apiClient from './apiClient'; // ✅ เปลี่ยนจาก api.js หรือ axios
+// API client for activities
+import apiClient from './client';
 
 export const listActivities = (params) => {
   return apiClient.get('/activities', { params });

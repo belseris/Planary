@@ -1,3 +1,19 @@
+"""
+home.py - API Endpoints สำหรับหน้าหลัก (Home)
+
+หน้าที่หลัก:
+- GET /home/diaries - ดึงรายการไดอารี่แบบมี pagination (limit + offset)
+- DELETE /home/diaries/{id} - ลบไดอารี่ (duplicate กับ /diary/{id} แต่เก็บไว้เพื่อ backward compatibility)
+
+การใช้งาน:
+- Frontend เรียก GET /home/diaries?limit=20&offset=0 เพื่อแสดงรายการไดอารี่ล่าสุด
+- รองรับ pagination เพื่อไม่ให้โหลดข้อมูลทั้งหมดพร้อมกัน (ประหยัด bandwidth)
+- ส่ง total count กลับไปด้วยเพื่อให้ frontend รู้ว่ามีทั้งหมดกี่รายการ
+
+หมายเหตุ:
+- อาจรวม endpoint นี้เข้ากับ /diary ได้ในอนาคต
+"""
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from db.session import get_db

@@ -1,3 +1,16 @@
+"""
+profile.py - Pydantic Schemas สำหรับ Profile API
+
+หน้าที่:
+- ProfileMe: ข้อมูลโปรไฟล์ที่ส่งกลับไป (GET /profile/me)
+- ProfileUpdateRequest: ข้อมูลที่รับเพื่อแก้ไขโปรไฟล์ (PUT /profile/update)
+- PasswordChangeRequest: ข้อมูลเปลี่ยนรหัสผ่าน (PATCH /profile/password)
+
+หมายเหตุ:
+- email แก้ไม่ได้ (เพราะเป็น unique identifier)
+- avatar อัปโหลดแยกต่างหากที่ POST /profile/avatar
+"""
+
 from pydantic import BaseModel, EmailStr, Field
 from uuid import UUID
 

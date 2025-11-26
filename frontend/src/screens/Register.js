@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, Button, Alert, TouchableOpacity, StyleSheet, Image, ScrollView } from "react-native";
 import TextInputField from "../components/TextInputField";
-import { registerApi } from "../auth";
+import { registerApi } from "../api";
 
 export default function RegisterScreen({ navigation }) {
   const [email, setEmail] = useState("");

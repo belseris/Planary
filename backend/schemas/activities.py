@@ -1,12 +1,31 @@
+"""
+activities.py - Pydantic Schemas สำหรับ Activity API validation
+
+หน้าที่หลัก:
+- กำหนดรูปแบบข้อมูลกิจกรรมที่รับ/ส่งผ่าน API
+- Validate ข้อมูลก่อนเข้าฐานข้อมูล
+- รองรับ JSONB fields (subtasks) ที่อาจเป็น string หรือ object
+
+Schemas:
+- ActivityCreate: สำหรับสร้างกิจกรรมใหม่ (POST)
+- ActivityUpdate: สำหรับแก้ไขกิจกรรม (PUT) - ทุก field เป็น optional
+- ActivityOut: รูปแบบข้อมูลที่ส่งกลับไป (รวม routine_id)
+- ActivityList: wrapper สำหรับส่ง array ของ ActivityOut
+
+_JsonMixin:
+- Helper mixin สำหรับแปลง JSON string เป็น dict/list
+- ใช้กับ field ที่เป็น JSONB ใน database (เช่น subtasks)
+"""
+
 from __future__ import annotations
 from datetime import date, time as dt_time
 from uuid import UUID
 from pydantic import BaseModel, Field, field_validator
 import json
-from typing import Optional # ✅ เพิ่ม
+from typing import Optional
 
-# ... (Mixin _JsonMixin ใช้ของเดิมได้) ...
 class _JsonMixin:
+    """Mixin สำหรับแปลง JSON string/dict/list ให้เป็น Python object"""
     @staticmethod
     def _parse_json_maybe(v):
         if v is None: return None

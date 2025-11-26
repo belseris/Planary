@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 from uuid import UUID
 import datetime
@@ -7,6 +7,8 @@ class RoutineActivityBase(BaseModel):
     title: str = Field(..., min_length=1, max_length=255)
     category: Optional[str] = None
     time: Optional[datetime.time] = None
+    notes: Optional[str] = Field(None, max_length=2000)
+    subtasks: Optional[List[Dict[str, Any]]] = None
 
 class RoutineActivityCreate(RoutineActivityBase):
     # Make day_of_week optional on the schema to be more forgiving to clients.
@@ -18,6 +20,8 @@ class RoutineActivityUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=255)
     category: Optional[str] = None
     time: Optional[datetime.time] = None
+    notes: Optional[str] = Field(None, max_length=2000)
+    subtasks: Optional[List[Dict[str, Any]]] = None
 
 class RoutineActivityResponse(RoutineActivityBase):
     id: UUID

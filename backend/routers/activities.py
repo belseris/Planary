@@ -1,10 +1,34 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+"""
+activities.py - API Endpoints สำหรับจัดการกิจกรรม (Activities)
+
+หน้าที่หลัก:
+- GET /activities?qdate=YYYY-MM-DD - ดึงกิจกรรมทั้งหมดในวันที่กำหนด
+- POST /activities - สร้างกิจกรรมใหม่
+- GET /activities/{id} - ดึงกิจกรรมตัวเดียว
+- PUT /activities/{id} - แก้ไขกิจกรรม
+- DELETE /activities/{id} - ลบกิจกรรม
+
+คุณสมบัติพิเศษ - Auto-Instantiate Routines:
+เมื่อเรียก GET /activities?qdate=... ระบบจะ:
+1. ตรวจสอบว่าวันนั้นเป็นวันไหนในสัปดาห์ (mon, tue, wed, ...)
+2. ดึง RoutineActivities ทั้งหมดของวันนั้น (แม่แบบกิจกรรมประจำ)
+3. ตรวจสอบว่ากิจกรรมไหนยังไม่ถูกสร้างเป็น Activity จริงๆ
+4. สร้าง Activity ใหม่จากแม่แบบที่ยังไม่มี (auto-instantiate)
+5. ส่งรายการกิจกรรมทั้งหมดกลับไป (รวมของเก่า + ของที่เพิ่งสร้าง)
+
+การเชื่อมโยง Routine:
+- Activity.routine_id ชี้ไปที่ RoutineActivity.id
+- แก้ไข/ลบ Activity จะไม่กระทบ RoutineActivity (แม่แบบ)
+- วันพรุ่งนี้ระบบจะสร้าง Activity ใหม่จากแม่แบบอีกครั้ง
+"""
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from sqlalchemy.orm import Session
 from models.activity import Activity
-from models.routine_activity import RoutineActivity # ✅ Import Routine Model
+from models.routine_activity import RoutineActivity # Import แม่แบบกิจกรรมประจำ
 from models.user import User
 from db.session import get_db
-from routers.profile import current_user # สมมติว่าไฟล์นี้มี current_user
+from routers.profile import current_user # Dependency สำหรับตรวจสอบ user ที่ login
 from schemas.activities import ActivityCreate, ActivityUpdate, ActivityOut, ActivityList
 import datetime
 from uuid import UUID
@@ -49,6 +73,19 @@ def list_activities(
     for template in routine_templates:
         if str(template.id) not in existing_routine_ids:
             # ✅ ถ้ายังไม่มี ให้สร้างกิจกรรมจริง (Instantiate)
+            # คัดลอก subtasks แต่รีเซ็ต completed เป็น false และสร้าง ID ใหม่
+            copied_subtasks = None
+            if template.subtasks:
+                import uuid
+                copied_subtasks = [
+                    {
+                        "id": str(uuid.uuid4()),
+                        "text": st.get("text", ""),
+                        "completed": False
+                    }
+                    for st in template.subtasks
+                ]
+            
             new_activity = Activity(
                 user_id=me.id,
                 routine_id=template.id, # ลิงก์กลับไปที่แม่แบบ
@@ -58,6 +95,8 @@ def list_activities(
                 time=template.time,
                 status="normal", # สถานะเริ่มต้น
                 all_day=False,
+                notes=template.notes, # คัดลอกรายละเอียดจากแม่แบบ
+                subtasks=copied_subtasks, # คัดลอกงานย่อยจากแม่แบบ (รีเซ็ต completed)
             )
             new_activities_to_create.append(new_activity)
 
@@ -101,9 +140,9 @@ def get_activity(activity_id: UUID, db: Session = Depends(get_db), me: User = De
 
 @router.put("/{activity_id}", response_model=ActivityOut)
 def update_activity(
-    activity_id: UUID, 
-    payload: ActivityUpdate, # ✅ ใช้ Schema ที่แก้ไขแล้ว
-    db: Session = Depends(get_db), 
+    activity_id: UUID,
+    payload: dict = Body(...),
+    db: Session = Depends(get_db),
     me: User = Depends(current_user)
 ):
     """
@@ -113,7 +152,18 @@ def update_activity(
     if not row:
         raise HTTPException(404, "ไม่พบกิจกรรม")
     
-    update_data = payload.model_dump(exclude_unset=True) # อัปเดตเฉพาะ field ที่ส่งมา
+    # If client mistakenly sends `date` in update payload, ignore it here
+    if isinstance(payload, dict) and 'date' in payload:
+        payload.pop('date')
+
+    # Validate remaining fields with ActivityUpdate schema
+    try:
+        validated = ActivityUpdate.model_validate(payload)
+    except Exception as e:
+        # Re-raise as HTTP 422 with validation details
+        raise HTTPException(status_code=422, detail=str(e))
+
+    update_data = validated.model_dump(exclude_unset=True)
     
     # ถ้าอัปเดตสถานะของกิจกรรมที่มาจาก Routine
     # มันจะอัปเดตแค่ "กิจกรรมจริง" ของวันนี้ ไม่กระทบ "แม่แบบ"
