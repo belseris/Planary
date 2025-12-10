@@ -29,12 +29,13 @@
 
 // screens/ActivitiesScreen.js
 import React, { useEffect, useMemo, useState, useCallback } from "react";
-import { View, Text, SectionList, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Platform } from "react-native";
+import { View, Text, SectionList, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Platform, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { listActivities } from "../api";
 import { CATEGORIES, STATUSES, TH_DAYS } from "../utils/constants";  // Constants สำหรับ UI
 import { toDateString, getStartOfWeek } from "../utils/dateUtils";  // Date utilities
+import MonthlyCalendar from "../components/MonthlyCalendar";  // ปฏิทินรายเดือน
 
 // --- Components (useWeek, WeekSelector) ---
 const useWeek = (selectedDate) => {
@@ -124,6 +125,7 @@ export default function ActivitiesScreen({ navigation }) {
     const [selectedDate, setSelectedDate] = useState(toDateString(new Date()));
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [calendarExpanded, setCalendarExpanded] = useState(true);
     const week = useWeek(selectedDate);
 
     // ✅ 5. loadActivities เรียก API เดียว
@@ -169,25 +171,54 @@ export default function ActivitiesScreen({ navigation }) {
 
     const formattedDateHeader = useMemo(() => new Date(selectedDate).toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" }), [selectedDate]);
 
+    const handleMonthChange = (newDate) => {
+        setSelectedDate(toDateString(newDate));
+    };
+
     return (
         <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-            <View style={styles.headerContainer}>
-                <WeekSelector week={week} selectedDate={selectedDate} onDateSelect={setSelectedDate} />
-                <Text style={styles.dateHeader}>วันที่ {formattedDateHeader}</Text>
-            </View>
-            <View style={styles.listContainer}>
-                {(loading && items.length === 0) ? <ActivityIndicator size="large" style={{ marginTop: 50 }} color="#1f6f8b" /> : (
-                    <SectionList
-                        sections={groupedItems}
-                        keyExtractor={(item) => item.id.toString()}
-                        renderItem={({ item }) => <ActivityCard item={item} onPress={() => navigation.navigate("ActivityDetail", { id: item.id })} />}
-                        renderSectionHeader={({ section }) => <Text style={styles.sectionHeader}>{section.title}</Text>}
-                        ListEmptyComponent={<Text style={styles.empty}>ยังไม่มีกิจกรรมในวันนี้</Text>}
-                        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
-                    />
+            <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+                {/* ปฏิทินรายเดือน */}
+                <View style={styles.calendarSection}>
+                    {calendarExpanded && (
+                        <MonthlyCalendar 
+                            selectedDate={selectedDate}
+                            onDateSelect={setSelectedDate}
+                            onMonthChange={handleMonthChange}
+                        />
+                    )}
+                </View>
+
+                {/* สัปดาห์เลือก */}
+                {!calendarExpanded && (
+                    <View style={styles.headerContainer}>
+                        <WeekSelector week={week} selectedDate={selectedDate} onDateSelect={setSelectedDate} />
+                        <Text style={styles.dateHeader}>วันที่ {formattedDateHeader}</Text>
+                    </View>
                 )}
-                {loading && items.length > 0 && <View style={styles.loadingOverlay}><ActivityIndicator size="large" color="#1f6f8b" /></View>}
-            </View>
+
+                {/* รายการกิจกรรม */}
+                <View style={styles.listContainer}>
+                    {(loading && items.length === 0) ? <ActivityIndicator size="large" style={{ marginTop: 50 }} color="#1f6f8b" /> : (
+                        <SectionList
+                            sections={groupedItems}
+                            keyExtractor={(item) => item.id.toString()}
+                            renderItem={({ item }) => <ActivityCard item={item} onPress={() => navigation.navigate("ActivityDetail", { id: item.id })} />}
+                            renderSectionHeader={({ section }) => <Text style={styles.sectionHeader}>{section.title}</Text>}
+                            ListEmptyComponent={<Text style={styles.empty}>ยังไม่มีกิจกรรมในวันนี้</Text>}
+                            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
+                            scrollEnabled={false}
+                        />
+                    )}
+                    {loading && items.length > 0 && <View style={styles.loadingOverlay}><ActivityIndicator size="large" color="#1f6f8b" /></View>}
+                </View>
+            </ScrollView>
+
+            {/* Floating Action Buttons */}
+            <TouchableOpacity style={styles.calendarFab} onPress={() => setCalendarExpanded(!calendarExpanded)}>
+                <Ionicons name="calendar" size={24} color="#fff" />
+            </TouchableOpacity>
+
             <TouchableOpacity style={styles.addButton} onPress={() => navigation.navigate("EditActivity", { date: selectedDate })}>
                 <Ionicons name="add" size={32} color="#fff" />
             </TouchableOpacity>
@@ -197,7 +228,10 @@ export default function ActivitiesScreen({ navigation }) {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: "#f7f8fa" },
-    listContainer: { flex: 1 },
+    scrollContainer: { flex: 1 },
+    calendarSection: { backgroundColor: '#fff', marginBottom: 10 },
+  expandButton: { padding: 8 },
+    listContainer: { paddingHorizontal: 16, paddingBottom: 140 },
     loadingOverlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(247, 248, 250, 0.7)", justifyContent: "center", alignItems: "center" },
     headerContainer: { paddingHorizontal: 16, paddingTop: Platform.OS === 'android' ? 10 : 0, paddingBottom: 10, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
     weekNavContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
@@ -219,5 +253,6 @@ const styles = StyleSheet.create({
     cardTime: { marginHorizontal: 8, fontSize: 12, color: "#666" },
     badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
     empty: { textAlign: "center", marginTop: 50, color: "#aaa", fontSize: 16 },
-    addButton: { position: "absolute", bottom: 30, right: 20, width: 60, height: 60, borderRadius: 30, backgroundColor: "#1f6f8b", justifyContent: "center", alignItems: "center", elevation: 5 }
+    addButton: { position: "absolute", bottom: 30, right: 20, width: 60, height: 60, borderRadius: 30, backgroundColor: "#1f6f8b", justifyContent: "center", alignItems: "center", elevation: 5 },
+    calendarFab: { position: "absolute", bottom: 100, right: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: "#48a6d6", justifyContent: "center", alignItems: "center", elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84 }
 });

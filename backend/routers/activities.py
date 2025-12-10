@@ -35,6 +35,110 @@ from uuid import UUID
 
 router = APIRouter(prefix="/activities", tags=["Activities"])
 
+@router.get("/month/{year}/{month}", response_model=dict)
+def get_month_activities(
+    year: int,
+    month: int,
+    db: Session = Depends(get_db),
+    me: User = Depends(current_user)
+):
+    """
+    ดึงรายการวันที่มีกิจกรรมในเดือนที่กำหนด พร้อมประเภท
+    ระบบจะ auto-instantiate routine activities ให้อัตโนมัติ
+    
+    ตัวอย่าง: GET /activities/month/2025/12
+    ตัวอย่างการตอบกลับ:
+    {
+        "routine": ["2025-12-01", "2025-12-05"],
+        "regular": ["2025-12-02", "2025-12-15"]
+    }
+    """
+    # สร้างวันแรกและวันสุดท้ายของเดือน
+    start_date = datetime.date(year, month, 1)
+    
+    # หาวันสุดท้ายของเดือน
+    if month == 12:
+        end_date = datetime.date(year + 1, 1, 1) - datetime.timedelta(days=1)
+    else:
+        end_date = datetime.date(year, month + 1, 1) - datetime.timedelta(days=1)
+    
+    # ดึง RoutineActivities ทั้งหมดของ user
+    all_routines = db.query(RoutineActivity).filter(
+        RoutineActivity.user_id == me.id
+    ).all()
+    
+    # วนลูปแต่ละวันในเดือน และ instantiate routines ที่ยังไม่มี
+    current_date = start_date
+    while current_date <= end_date:
+        day_key = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"][current_date.weekday()]
+        
+        # หา routines ของวันนี้
+        day_routines = [r for r in all_routines if r.day_of_week == day_key]
+        
+        # ตรวจสอบว่า routine ไหนยังไม่ถูก instantiate
+        for routine in day_routines:
+            existing = db.query(Activity).filter(
+                Activity.user_id == me.id,
+                Activity.date == current_date,
+                Activity.routine_id == routine.id
+            ).first()
+            
+            # ถ้าไม่มี ให้สร้างใหม่
+            if not existing:
+                copied_subtasks = None
+                if routine.subtasks:
+                    import uuid
+                    copied_subtasks = [
+                        {
+                            "id": str(uuid.uuid4()),
+                            "text": st.get("text", ""),
+                            "completed": False
+                        }
+                        for st in routine.subtasks
+                    ]
+                
+                new_activity = Activity(
+                    user_id=me.id,
+                    routine_id=routine.id,
+                    date=current_date,
+                    title=routine.title,
+                    category=routine.category,
+                    time=routine.time,
+                    status="normal",
+                    all_day=False,
+                    notes=routine.notes,
+                    subtasks=copied_subtasks,
+                )
+                db.add(new_activity)
+        
+        current_date += datetime.timedelta(days=1)
+    
+    # Commit ทั้งหมดที่สร้างใหม่
+    db.commit()
+    
+    # ดึงกิจกรรมทั้งหมดในเดือนหลังจาก instantiate
+    activities = db.query(Activity).filter(
+        Activity.user_id == me.id,
+        Activity.date >= start_date,
+        Activity.date <= end_date
+    ).all()
+    
+    # แยกวันตามประเภท: routine (มี routine_id) และ regular (ไม่มี routine_id)
+    routine_dates = set()
+    regular_dates = set()
+    
+    for act in activities:
+        date_str = str(act.date)
+        if act.routine_id:
+            routine_dates.add(date_str)
+        else:
+            regular_dates.add(date_str)
+    
+    return {
+        "routine": sorted(list(routine_dates)),
+        "regular": sorted(list(regular_dates))
+    }
+
 @router.get("", response_model=ActivityList)
 def list_activities(
     qdate: str = Query(..., description="Date in YYYY-MM-DD format"), # ✅ บังคับให้ส่ง qdate มา

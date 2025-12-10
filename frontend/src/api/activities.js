@@ -5,6 +5,10 @@ export const listActivities = (params) => {
   return apiClient.get('/activities', { params });
 };
 
+export const getMonthActivities = (year, month) => {
+  return apiClient.get(`/activities/month/${year}/${month}`);
+};
+
 export const createActivity = (data) => {
   return apiClient.post('/activities', data);
 };
