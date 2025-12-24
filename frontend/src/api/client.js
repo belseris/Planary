@@ -19,7 +19,7 @@ import { Alert, Platform } from 'react-native';
  * - iOS Simulator/Physical device: ใช้ LAN IP ของเครื่อง
  * - Tunnel mode: ใช้ LAN IP เพื่อเข้าถึง backend บนเครือข่ายเดียวกัน
  */
-const DEFAULT_LAN_IP = '192.168.0.102'; // อัปเดตเป็น IP ปัจจุบันจาก ipconfig คำสั่งเช็๋ค ipconfig | findstr "IPv4"
+const DEFAULT_LAN_IP = '192.168.0.100'; // อัปเดตเป็น IP ปัจจุบันจาก ipconfig คำสั่งเช็๋ค ipconfig | findstr "IPv4"
 export const BASE_URL = `http://${DEFAULT_LAN_IP}:8000`;
 
 /**

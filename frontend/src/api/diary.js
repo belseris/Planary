@@ -24,3 +24,10 @@ export function updateDiary(id, payload) {
 export function deleteDiary(id) {
   return apiClient.delete(`/diary/${id}`);
 }
+
+// Check if diary exists for a specific date (YYYY-MM-DD)
+export async function existsDiary(dateISO) {
+  const res = await listDiaries({ startDate: dateISO, endDate: dateISO });
+  const arr = Array.isArray(res) ? res : res?.items || [];
+  return arr.length > 0;
+}

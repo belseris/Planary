@@ -25,7 +25,8 @@ from routers.profile import current_user
 import datetime
 
 # Legacy mood emojis ที่รองรับ (เก็บไว้เพื่อ backward compatibility)
-ALLOWED_MOODS = {"🙂", "😄", "😢", "😠", "😌", "🤩"}
+# Include emojis from YesterdayDiaryModal: 😄 (score >= 4), 😐 (score === 3), 😞 (score < 3)
+ALLOWED_MOODS = {"🙂", "😄", "😢", "😠", "😌", "🤩", "😐", "😞"}
 
 router = APIRouter(prefix="/diary", tags=["diary"])
 
@@ -47,7 +48,7 @@ def list_diaries(
 def create_diary(payload: DiaryCreate, db: Session = Depends(get_db), me: User = Depends(current_user)):
     # mood อาจเป็น null (draft mode)
     if payload.mood and payload.mood not in ALLOWED_MOODS:
-        raise HTTPException(status_code=400, detail="mood ไม่ถูกต้อง")
+        raise HTTPException(status_code=400, detail=f"mood '{payload.mood}' ไม่ถูกต้อง ต้องเป็น {ALLOWED_MOODS}")
     
     # แปลง activities เป็น list of dict ถ้ามีข้อมูล
     activities_data = None
@@ -88,6 +89,8 @@ def create_diary(payload: DiaryCreate, db: Session = Depends(get_db), me: User =
         date=payload.date, time=diary_time,
         title=payload.title, detail=payload.detail,
         mood=diary_mood, tags=payload.tags,
+        positive_score=payload.positive_score,
+        negative_score=payload.negative_score,
         mood_score=stored_mood_score,
         mood_tags=payload.mood_tags,
         activities=activities_data
@@ -115,7 +118,7 @@ def update_diary(diary_id: str, payload: DiaryUpdate, db: Session = Depends(get_
 
     # mood อาจเป็น null (draft mode)
     if update_data.get('mood') and update_data.get('mood') not in ALLOWED_MOODS:
-        raise HTTPException(status_code=400, detail="mood ไม่ถูกต้อง")
+        raise HTTPException(status_code=400, detail=f"mood '{update_data.get('mood')}' ไม่ถูกต้อง")
 
     row = db.query(Diary).filter(Diary.id == diary_id, Diary.user_id == me.id).first()
     if not row:
@@ -158,6 +161,10 @@ def update_diary(diary_id: str, payload: DiaryUpdate, db: Session = Depends(get_
         row.mood = update_data.get('mood')
     if 'tags' in update_data:
         row.tags = update_data.get('tags')
+    if 'positive_score' in update_data:
+        row.positive_score = update_data.get('positive_score')
+    if 'negative_score' in update_data:
+        row.negative_score = update_data.get('negative_score')
     if 'mood_score' in update_data:
         row.mood_score = stored_mood_score
     if 'mood_tags' in update_data:

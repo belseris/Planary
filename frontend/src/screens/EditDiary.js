@@ -28,18 +28,49 @@ import { generateActivitySummary } from "../summarizeActivities"; // สร้�
 // Props:
 // - value: คะแนนปัจจุบัน (0-5)
 // - onChange: callback เมื่อผู้ใช้กดเลือกดาว
-const StarRating = ({ value, onChange }) => (
-  <View style={styles.starContainer}>
+// - color: สีของดาว (default: '#f5c518')
+// - large: ขยายขนาดดาว (สำหรับภาพรวม)
+const StarRating = ({ value, onChange, color = '#f5c518', large = false }) => (
+  <View style={[styles.starContainer, large && { marginVertical: 8 }]}>
     {[1, 2, 3, 4, 5].map(i => (
       <TouchableOpacity key={i} onPress={() => onChange(i)}>
         <Ionicons
           name={i <= value ? "star" : "star-outline"} // ดาวเต็มหรือกลวง
-          size={40}
-          color={i <= value ? "#f5c518" : "#ccc"} // สีเหลืองถ้าถูกเลือก
-          style={{ marginHorizontal: 5 }}
+          size={large ? 44 : 32}
+          color={i <= value ? color : "#e0e0e0"} // สีตามที่กำหนด
+          style={{ marginHorizontal: large ? 6 : 4 }}
         />
       </TouchableOpacity>
     ))}
+  </View>
+);
+
+// ============================================
+// TagRow Component - แสดงแถว tags ให้เลือก
+// ============================================
+const TagRow = ({ options, selected, setSelected, activeColor }) => (
+  <View style={styles.tagRow}>
+    {options.map((tag) => {
+      const active = selected.includes(tag);
+      return (
+        <TouchableOpacity
+          key={tag}
+          style={[
+            styles.tagChip,
+            active && { backgroundColor: activeColor + '20', borderColor: activeColor },
+          ]}
+          onPress={() =>
+            setSelected((prev) =>
+              active ? prev.filter((t) => t !== tag) : [...prev, tag],
+            )
+          }
+        >
+          <Text style={[styles.tagText, active && { color: activeColor, fontWeight: '700' }]}>
+            {tag}
+          </Text>
+        </TouchableOpacity>
+      );
+    })}
   </View>
 );
 
@@ -58,10 +89,36 @@ export default function EditDiaryScreen({ route, navigation }) {
   const [title, setTitle] = useState(""); // ชื่อเรื่อง
   const [detail, setDetail] = useState(""); // รายละเอียด/เนื้อหา
   const [date, setDate] = useState(initDate); // วันที่บันทึก
-  const [moodRating, setMoodRating] = useState(null); // คะแนนอารมณ์ (1-5)
-  const [moodTags, setMoodTags] = useState([]); // แท็กอารมณ์ที่เลือก เช่น ['😊', '🚀']
+  // 3D Score System - ตรงกับ YesterdayDiaryModal
+  const [posScore, setPosScore] = useState(0); // คะแนนเรื่องดี 0-5
+  const [negScore, setNegScore] = useState(0); // คะแนนเรื่องแย่ 0-5
+  const [overall, setOverall] = useState(0); // คะแนนภาพรวม 0-5
+  // Tag system - ตรงกับ YesterdayDiaryModal
+  const [posTags, setPosTags] = useState([]); // แท็กด้านดี
+  const [negTags, setNegTags] = useState([]); // แท็กด้านแย่
+  const [moodTags, setMoodTags] = useState([]); // แท็กเพิ่มเติม (legacy)
   const [loading, setLoading] = useState(true); // สถานะการโหลด
   const [loadingSummary, setLoadingSummary] = useState(false); // สถานะการโหลดสรุปกิจกรรม
+
+  // Tag options - ตรงกับ YesterdayDiaryModal
+  const POSITIVE_TAGS = ['ของกินอร่อย', 'งานเสร็จ', 'พักผ่อน', 'แฟนน่ารัก', 'ออกกำลังกาย'];
+  const NEGATIVE_TAGS = ['รถติด', 'โดนดุ', 'นอนน้อย', 'ป่วย', 'ทะเลาะกัน', 'งานเดือด'];
+
+  const tagEmojiMap = {
+    'ของกินอร่อย': '🍜',
+    'งานเสร็จ': '✅',
+    'พักผ่อน': '🛌',
+    'แฟนน่ารัก': '💖',
+    'ออกกำลังกาย': '💪',
+    'รถติด': '🚗',
+    'โดนดุ': '😓',
+    'นอนน้อย': '😴',
+    'ป่วย': '🤒',
+    'ทะเลาะกัน': '⚡',
+    'งานเดือด': '🔥',
+  };
+
+  const toEmojis = (tags) => tags.map((t) => tagEmojiMap[t]).filter(Boolean);
 
   // ============================================
   // load() - โหลดข้อมูลเมื่อเข้าหน้าจอ
@@ -80,7 +137,11 @@ export default function EditDiaryScreen({ route, navigation }) {
         // นำข้อมูลที่ได้มา set ใน state
         setTitle(diaryData.title);
         setDate(diaryData.date);
-        setMoodRating(diaryData.mood_score || null);
+        // โหลด 3 คะแนน
+        setPosScore(diaryData.positive_score || 0);
+        setNegScore(diaryData.negative_score || 0);
+        setOverall(diaryData.mood_score || 0);
+        // โหลด tags (เก็บทั้งหมดเป็น emoji แล้ว)
         setMoodTags(diaryData.mood_tags || []);
         
         // ✅ เพิ่ม: ถ้า detail ว่างเปล่า ให้ดึงกิจกรรมมาสรุปให้
@@ -168,8 +229,10 @@ export default function EditDiaryScreen({ route, navigation }) {
       time: "00:00:00",          // เวลา (default 00:00:00 เพราะ diary ไม่ใช้เวลาจริง)
       title: title.trim(),       // ชื่อเรื่อง
       detail: detail.trim(),     // รายละเอียด
-      mood_score: moodRating,    // คะแนนดาว 1-5 (หรือ null)
-      mood_tags: moodTags,       // array ของ emoji tags เช่น ['😊', '🚀']
+      positive_score: posScore || null,  // คะแนนเรื่องดี 0-5
+      negative_score: negScore || null,  // คะแนนเรื่องแย่ 0-5
+      mood_score: overall || null,       // คะแนนภาพรวม 0-5
+      mood_tags: [...toEmojis(posTags), ...toEmojis(negTags), ...moodTags], // รวม tags ทั้งหมด
     };
 
     try {
@@ -311,22 +374,48 @@ export default function EditDiaryScreen({ route, navigation }) {
         </TouchableOpacity>
 
         {/* ============================================ */}
-        {/* Card 2: 2D Mood System (ดาว + แท็ก) */}
+        {/* Card 2: 3D Mood System (เหมือน YesterdayDiaryModal) */}
         {/* ============================================ */}
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>📊 ประเมินวันของคุณ</Text>
           
-          {/* มิติที่ 1: Star Rating (1-5) */}
-          <View style={{ alignItems: 'center', marginBottom: 12 }}>
-            <Text style={{ fontSize: 13, fontWeight: '600', marginBottom: 8 }}>ให้คะแนนวันนี้ (1-5)</Text>
-            {/* StarRating component - ผู้ใช้เลือกดาว 1-5 */}
-            <StarRating 
-              value={moodRating || 0} 
-              onChange={(v) => { 
-                setMoodRating(v);    // บันทึกคะแนนใหม่
-                setMoodTags([]);     // ล้างแท็กเก่า (เพราะแต่ละคะแนนมีแท็กต่างกัน)
-              }} 
-            />
+          {/* ส่วนที่ 1: เรื่องดีๆ */}
+          <View style={styles.sectionCard}>
+            <Text style={styles.scoreSectionTitle}>เรื่องดี ๆ</Text>
+            <StarRating value={posScore} onChange={setPosScore} color="#52c41a" />
+            {posScore > 0 && (
+              <TagRow
+                options={POSITIVE_TAGS}
+                selected={posTags}
+                setSelected={setPosTags}
+                activeColor="#52c41a"
+              />
+            )}
+          </View>
+
+          <View style={styles.scoreDivider} />
+
+          {/* ส่วนที่ 2: เรื่องแย่ๆ */}
+          <View style={styles.sectionCard}>
+            <Text style={styles.scoreSectionTitle}>เรื่องแย่ ๆ</Text>
+            <StarRating value={negScore} onChange={setNegScore} color="#ff4d4f" />
+            {negScore > 0 && (
+              <TagRow
+                options={NEGATIVE_TAGS}
+                selected={negTags}
+                setSelected={setNegTags}
+                activeColor="#ff4d4f"
+              />
+            )}
+          </View>
+
+          <View style={styles.scoreDivider} />
+
+          {/* ส่วนที่ 3: ภาพรวมทั้งวัน (เด่นสุด) */}
+          <View style={styles.sectionCard}>
+            <Text style={[styles.scoreSectionTitle, { textAlign: 'center', fontSize: 16, fontWeight: '700' }]}>ภาพรวมทั้งวัน</Text>
+            <StarRating value={overall} onChange={setOverall} large />
+            <Text style={styles.hintText}>ให้คะแนน 1–5 ดาว</Text>
           </View>
 
           {/* แสดงแท็กที่เลือกไว้แล้ว (ถ้ามี) */}
@@ -343,36 +432,7 @@ export default function EditDiaryScreen({ route, navigation }) {
             </View>
           )}
 
-          {/* มิติที่ 2: Emoji Tags - แสดงเฉพาะเมื่อเลือกดาวแล้ว */}
-          {moodRating && (
-            <View style={styles.moodTagsSection}>
-              <Text style={styles.moodTagsTitle}>เพราะอะไรถึงรู้สึกแบบนั้น? (เลือกได้หลายอัน):</Text>
-              <View style={styles.moodTagsGrid}>
-                {/* getTagsForRating(moodRating) คืน array ของ {emoji, label} ตามคะแนนดาว */}
-                {getTagsForRating(moodRating).map((tag) => {
-                  const isSelected = moodTags.includes(tag.emoji); // เช็คว่าแท็กนี้ถูกเลือกหรือยัง
-                  return (
-                    <TouchableOpacity
-                      key={tag.emoji}
-                      style={[styles.moodTag, isSelected && styles.moodTagSelected]} // เปลี่ยนสีถ้าถูกเลือก
-                      onPress={() => {
-                        if (isSelected) {
-                          // ถ้าเลือกอยู่แล้ว → ยกเลิก (filter ออก)
-                          setMoodTags(moodTags.filter(t => t !== tag.emoji));
-                        } else {
-                          // ถ้ายังไม่เลือก → เพิ่มเข้าไป
-                          setMoodTags([...moodTags, tag.emoji]);
-                        }
-                      }}
-                    >
-                      <Text style={styles.moodTagEmoji}>{tag.emoji}</Text>
-                      <Text style={[styles.moodTagLabel, isSelected && { color: '#fff' }]}>{tag.label}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-          )}
+
         </View>
         
       </ScrollView>
@@ -416,7 +476,15 @@ const styles = StyleSheet.create({
   
   // Mood section
   sectionTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 12 },           // หัวข้อ "ประเมินวันของคุณ"
+  sectionCard: { backgroundColor: '#fff', borderRadius: 12, padding: 12, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
+  scoreSection: { marginVertical: 8 },                                             // ส่วนย่อยแต่ละมิติ
+  scoreSectionTitle: { fontSize: 14, fontWeight: '600', color: '#333', marginBottom: 8 }, // หัวข้อส่วนย่อย
+  scoreDivider: { height: 1, backgroundColor: '#e6e6e6', marginVertical: 12 },   // เส้นแบ่งระหว่างส่วน
   starContainer: { flexDirection: 'row', justifyContent: 'center' },              // จัดดาว 5 ดวงแนวนอน กึ่งกลาง
+  hintText: { textAlign: 'center', color: '#888', fontSize: 12, marginTop: 6 },  // คำใบ้ใต้ดาวภาพรวม
+  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8, justifyContent: 'center' },
+  tagChip: { borderWidth: 1, borderColor: '#ddd', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: '#f9f9f9', shadowColor: '#000', shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 },
+  tagText: { color: '#888', fontSize: 13 },
   
   // Selected tags display
   selectedTagsSection: {
@@ -447,7 +515,7 @@ const styles = StyleSheet.create({
   // Mood tags section (แสดงเมื่อเลือกดาวแล้ว)
   moodTagsSection: {
     borderTopWidth: 1,                       // เส้นขีดบน
-    borderTopColor: '#eee',
+    borderTopColor: '#e6e6e6',
     marginTop: 16,
     paddingTop: 16,
   },

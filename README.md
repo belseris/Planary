@@ -1,5 +1,97 @@
 # Planary
 
+## Clone / Setup / Run (สำหรับ Demo)
+
+ทำตามขั้นตอนนี้เพื่อให้ผู้ประเมินสามารถ clone และ run ระบบได้จริงบน Windows (ใช้ Postgres + Python + Expo):
+
+### 1) Clone โค้ด
+
+```bash
+git clone <REPO_URL>
+cd Planary
+```
+
+### 2) ตั้งค่า Database (PostgreSQL)
+
+ต้องมี PostgreSQL ทำงานบนเครื่อง (แนะนำติดตั้งจาก https://www.postgresql.org/)
+
+สร้างฐานข้อมูลว่างชื่อ `planary` และผู้ใช้ (ถ้ายังไม่มี):
+
+```sql
+-- เปิด psql แล้วรันคำสั่งด้านล่าง
+CREATE USER planary_user WITH PASSWORD 'planary_pass';
+CREATE DATABASE planary OWNER planary_user;
+GRANT ALL PRIVILEGES ON DATABASE planary TO planary_user;
+```
+
+บันทึก host/port ของ Postgres (โดยปกติ `localhost:5432`).
+
+### 3) ตั้งค่า Backend
+
+```powershell
+cd backend
+python -m venv .venv
+.\.venv\Scripts\activate
+
+# ติดตั้ง dependencies ตาม pyproject.toml
+pip install -e .
+
+# สร้างไฟล์ .env (ปรับค่าให้ตรงกับเครื่องคุณ)
+New-Item -ItemType File -Path .env -Force
+"DATABASE_URL=postgresql+psycopg2://planary_user:planary_pass@localhost:5432/planary`nSECRET_KEY=demo-secret-key`nACCESS_TOKEN_EXPIRE_MINUTES=120" | Set-Content .env
+
+# รันเซิร์ฟเวอร์ FastAPI (0.0.0.0:8000)
+python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+ทดสอบว่า backend ทำงาน:
+
+```bash
+curl http://127.0.0.1:8000/ping
+```
+
+ถ้าต้องให้มือถือหรืออุปกรณ์ใน LAN เข้าถึง ให้ใช้ IP เครื่อง (เช่น `http://192.168.x.x:8000/ping`).
+บน Windows สามารถเปิด firewall ชั่วคราวด้วยสคริปต์ (รัน PowerShell แบบ Administrator):
+
+```powershell
+cd backend
+./allow_firewall.ps1 -Action Add   # เปิด
+# ./allow_firewall.ps1 -Action Remove  # ปิดเมื่อทดสอบเสร็จ
+```
+
+### 4) ตั้งค่า Frontend (Expo)
+
+```powershell
+cd ..\frontend
+npm install
+```
+
+แก้ค่า BASE_URL ใน `frontend/src/api/client.js` ให้ตรงกับ IP backend:
+
+```js
+// ตัวอย่าง
+export const BASE_URL = 'http://192.168.x.x:8000';
+```
+
+เริ่มต้น Expo:
+
+```bash
+npx expo start
+```
+
+เปิดแอป Expo Go บนมือถือ (อยู่ Wi‑Fi เดียวกัน) แล้วสแกน QR เพื่อเปิดแอป
+
+### 5) ตรวจสอบการทำงาน
+
+- เปิด Swagger: `http://<IP>:8000/docs` เพื่อลองเรียก API
+- ในแอป มือถือ: ลอง Register/Login จากหน้า `Login` และตรวจ `Activities`, `Diary`, `Trends`, `Profile`
+
+### 6) หมายเหตุสำคัญสำหรับผู้ประเมิน
+
+- ระบบต้องใช้ PostgreSQL จริง เนื่องจากมีฟิลด์ชนิด `JSONB` ในหลายตาราง
+- ถ้า API ขึ้น 401 ให้ logout แล้ว login ใหม่ (token หมดอายุหรือไม่ถูกต้อง)
+- ถ้าแอปขึ้น `Network Error` ให้ตรวจ IP/Firewall และว่าอยู่เครือข่ายเดียวกัน
+
 ## ภาพรวมสั้น ๆ
 แอปวางแผนชีวิต/กิจกรรม (React Native + Expo) ต่อกับ backend FastAPI. ส่วนสำคัญคือปฏิทินเดือน (จุดสีฟ้า = กิจกรรมประจำวันจาก routine, จุดสีแดง = กิจกรรมอื่น) และการดึง/สร้างกิจกรรมอัตโนมัติจากแม่แบบประจำวัน (routine).
 

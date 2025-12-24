@@ -15,6 +15,8 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { initAutoDiary } from "./src/autoDiaryService";
+import YesterdayDiaryModal from './src/components/YesterdayDiaryModal';
+import { listDiaries } from './src/api';
 
 // Import หน้าจอทั้งหมด (11 screens)
 import LoginScreen from "./src/screens/Login";
@@ -85,6 +87,8 @@ function MainTabs() {
 export default function App() {
   // State สำหรับเก็บ initial route (null = กำลังโหลด)
   const [initial, setInitial] = useState(null);
+  const [showYesterdayModal, setShowYesterdayModal] = useState(false);
+  const [yesterdayISO, setYesterdayISO] = useState(null);
 
   // ตรวจสอบ auth status เมื่อแอปเปิดครั้งแรก
   useEffect(() => {
@@ -94,9 +98,26 @@ export default function App() {
       // ถ้าไม่มี = ยังไม่ login → ไปหน้า Login
       setInitial(token ? "Main" : "Login");
       
-      // Auto-create diary draft สำหรับวันก่อนหน้า (ถ้า login แล้ว)
       if (token) {
-        await initAutoDiary();
+        // คำนวณวันที่เมื่อวาน
+        const today = new Date(); const y = new Date(today); y.setDate(today.getDate() - 1);
+        const iso = `${y.getFullYear()}-${String(y.getMonth()+1).padStart(2,'0')}-${String(y.getDate()).padStart(2,'0')}`;
+        setYesterdayISO(iso);
+
+        // ตรวจสอบว่ามี diary ของเมื่อวานหรือยัง
+        try {
+          const diaries = await listDiaries({ startDate: iso, endDate: iso });
+          const hasDiary = Array.isArray(diaries) ? diaries.length > 0 : (diaries.items ? diaries.items.length > 0 : false);
+          // ถ้าไม่มี → เปิด Modal; ถ้ามี → สร้าง draft ย้อนหลังอื่น ๆ แบบนุ่มนวล
+          if (!hasDiary) {
+            setShowYesterdayModal(true);
+          }
+          // เบื้องหลัง: เติม draft สำหรับวันก่อนหน้าที่ยังไม่มี (ย้อนไป 7 วัน)
+          await initAutoDiary();
+        } catch {
+          // ถ้าตรวจไม่ได้ ก็ยังคงเติม draft เบื้องหลังตามเดิม
+          await initAutoDiary();
+        }
       }
     })();
   }, []);
@@ -109,6 +130,13 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <NavigationContainer>
+      {showYesterdayModal && yesterdayISO && (
+        <YesterdayDiaryModal
+          visible={showYesterdayModal}
+          dateISO={yesterdayISO}
+          onClose={(saved) => { setShowYesterdayModal(false); }}
+        />
+      )}
       {/* Stack Navigator: จัดการการนำทางทั้งหมด */}
       <Stack.Navigator initialRouteName={initial}>
         {/* Auth Screens - ไม่ต้อง login */}

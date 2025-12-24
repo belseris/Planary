@@ -27,8 +27,9 @@ class ActivityFeedback(BaseModel):
     id: str  # Activity ID
     category: str  # หมวดหมู่กิจกรรม
     title: str  # ชื่อกิจกรรม
-    rating: int  # คะแนนที่ให้ (ใช้ในการสรุปกิจกรรม)
-    activityMood: str  # อารมณ์จากกิจกรรม
+    rating: Optional[int] = None  # คะแนนที่ให้ (optional - frontend ไม่ส่งมา)
+    activityMood: Optional[str] = None  # อารมณ์จากกิจกรรม (optional)
+    status: Optional[str] = None  # สถานะกิจกรรม (optional)
 
 class DiaryCreate(BaseModel):
     date: datetime.date
@@ -36,8 +37,11 @@ class DiaryCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     detail: str | None = Field(None, max_length=2000)
     mood: str | None = None
+    # 3D Score System
+    positive_score: Optional[int] = Field(None, ge=0, le=5)  # คะแนนเรื่องดี 0-5
+    negative_score: Optional[int] = Field(None, ge=0, le=5)  # คะแนนเรื่องแย่ 0-5
     # Accept either legacy strings ('good'/'bad') or integer rating 1..5
-    mood_score: Optional[Union[int, str]] = None
+    mood_score: Optional[Union[int, str]] = None  # ภาพรวมทั้งวัน
     mood_tags: List[str] | None = None  # ['😊', '🚀', ...]
     tags: str | None = None
     activities: List[ActivityFeedback] | None = None
@@ -49,6 +53,9 @@ class DiaryUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=200)
     detail: Optional[str] = Field(None, max_length=2000)
     mood: Optional[str] = None
+    # 3D Score System
+    positive_score: Optional[int] = Field(None, ge=0, le=5)
+    negative_score: Optional[int] = Field(None, ge=0, le=5)
     mood_score: Optional[Union[int, str]] = None
     mood_tags: Optional[List[str]] = None  # ['😊', '🚀', ...]
     tags: Optional[str] = None
@@ -61,6 +68,9 @@ class DiaryResponse(BaseModel):
     title: str
     detail: str | None = None
     mood: str | None = None
+    # 3D Score System
+    positive_score: Optional[int] = None
+    negative_score: Optional[int] = None
     mood_score: Optional[Union[int, str]] = None
     mood_tags: List[str] | None = None
     tags: str | None = None
