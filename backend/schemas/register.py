@@ -21,8 +21,8 @@ class RegisterRequest(BaseModel):
     username: str = Field(..., min_length=2, max_length=100)
     gender: str
     age: int = Field(..., ge=1, le=120)
-    password: str = Field(..., min_length=6)
-    confirm_password: str = Field(..., min_length=6)
+    password: str = Field(..., min_length=6, max_length=72)
+    confirm_password: str = Field(..., min_length=6, max_length=72)
 
 class RegisterResponse(BaseModel):
     id: UUID

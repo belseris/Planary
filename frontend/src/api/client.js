@@ -19,14 +19,17 @@ import { Alert, Platform } from 'react-native';
  * - iOS Simulator/Physical device: ใช้ LAN IP ของเครื่อง
  * - Tunnel mode: ใช้ LAN IP เพื่อเข้าถึง backend บนเครือข่ายเดียวกัน
  */
-const DEFAULT_LAN_IP = '192.168.0.100'; // อัปเดตเป็น IP ปัจจุบันจาก ipconfig คำสั่งเช็๋ค ipconfig | findstr "IPv4"
-export const BASE_URL = `http://${DEFAULT_LAN_IP}:8000`;
-
+const getBaseUrl = () => {
+  const envHost = process.env.EXPO_PUBLIC_API_HOST || process.env.API_HOST;
+  if (envHost) return `http://${envHost}:8000`;
+  if (Platform.OS === 'android') return 'http://10.0.2.2:8000';
+  return 'http://192.168.0.100:8000'; // replace with your host LAN IP when on iOS/device
+};
 /**
  * สร้าง Axios instance พร้อม config พื้นฐาน
  */
 const apiClient = axios.create({
-  baseURL: BASE_URL,
+  baseURL: getBaseUrl(),
   timeout: 60000, // 60 วินาที (เพิ่มขึ้นเพื่อรอ bundle โหลด)
   headers: {
     'Content-Type': 'application/json',

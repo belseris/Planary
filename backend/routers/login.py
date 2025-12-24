@@ -45,7 +45,13 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == payload.email).first()
     
     # ตรวจสอบว่า user มีอยู่และรหัสผ่านถูกต้อง
-    if not user or not verify_password(payload.password, user.password_hash):
+    try:
+        password_ok = verify_password(payload.password, user.password_hash) if user else False
+    except ValueError:
+        # bcrypt limit: 72 bytes
+        raise HTTPException(status_code=400, detail="รหัสผ่านยาวเกินไป (สูงสุด 72 อักขระ)")
+
+    if not user or not password_ok:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, 
             detail="อีเมลหรือรหัสผ่านไม่ถูกต้อง"

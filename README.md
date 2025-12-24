@@ -7,15 +7,15 @@
 ### 1) Clone โค้ด
 
 ```bash
-git clone <REPO_URL>
+git clone https://github.com/belseris/Planary.git
 cd Planary
 ```
 
 ### 2) ตั้งค่า Database (PostgreSQL)
 
-ต้องมี PostgreSQL ทำงานบนเครื่อง (แนะนำติดตั้งจาก https://www.postgresql.org/)
+ต้องมี PostgreSQL ทำงานบนเครื่อง
 
-สร้างฐานข้อมูลว่างชื่อ `planary` และผู้ใช้ (ถ้ายังไม่มี):
+สร้างฐานข้อมูลว่างชื่อ `planary`
 
 ```sql
 -- เปิด psql แล้วรันคำสั่งด้านล่าง

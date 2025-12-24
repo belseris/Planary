@@ -11,11 +11,11 @@ Frontend ส่ง POST /login/token ด้วย {email, password}
 เก็บ token ไว้และส่งใน Authorization: Bearer <token> ทุกครั้งที่เรียก API
 """
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 class LoginRequest(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(..., min_length=6, max_length=72)
 
 class TokenResponse(BaseModel):
     access_token: str
