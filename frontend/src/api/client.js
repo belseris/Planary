@@ -25,11 +25,14 @@ const getBaseUrl = () => {
   if (Platform.OS === 'android') return 'http://10.0.2.2:8000';
   return 'http://192.168.0.100:8000'; // replace with your host LAN IP when on iOS/device
 };
+
+export const BASE_URL = getBaseUrl();
+
 /**
  * สร้าง Axios instance พร้อม config พื้นฐาน
  */
 const apiClient = axios.create({
-  baseURL: getBaseUrl(),
+  baseURL: BASE_URL,
   timeout: 60000, // 60 วินาที (เพิ่มขึ้นเพื่อรอ bundle โหลด)
   headers: {
     'Content-Type': 'application/json',
