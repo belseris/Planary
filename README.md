@@ -13,16 +13,9 @@ cd Planary
 
 ### 2) ตั้งค่า Database (PostgreSQL)
 
-ต้องมี PostgreSQL ทำงานบนเครื่อง
+ต้องมี PostgreSQL 
 
 สร้างฐานข้อมูลว่างชื่อ `planary`
-
-```sql
--- เปิด psql แล้วรันคำสั่งด้านล่าง
-CREATE USER planary_user WITH PASSWORD 'planary_pass';
-CREATE DATABASE planary OWNER planary_user;
-GRANT ALL PRIVILEGES ON DATABASE planary TO planary_user;
-```
 
 บันทึก host/port ของ Postgres (โดยปกติ `localhost:5432`).
 
@@ -34,7 +27,13 @@ python -m venv .venv
 .\.venv\Scripts\activate
 
 # ติดตั้ง dependencies ตาม pyproject.toml
-pip install -e .
+python -m pip install -U pip setuptools wheel;
+python -m pip install "uvicorn[standard]" "fastapi[all]" sqlalchemy pydantic-settings psycopg2-binary "passlib[bcrypt]";
+python -m pip uninstall -y jose;
+python -m pip install "python-jose[cryptography]";
+python -m pip uninstall -y bcrypt;
+python -m pip install "bcrypt>=4.1.3,<5"
+
 
 # สร้างไฟล์ .env (ปรับค่าให้ตรงกับเครื่องคุณ)
 New-Item -ItemType File -Path .env -Force
@@ -62,16 +61,12 @@ cd backend
 ### 4) ตั้งค่า Frontend (Expo)
 
 ```powershell
-cd ..\frontend
+cd frontend
 npm install
 ```
 
 แก้ค่า BASE_URL ใน `frontend/src/api/client.js` ให้ตรงกับ IP backend:
 
-```js
-// ตัวอย่าง
-export const BASE_URL = 'http://192.168.x.x:8000';
-```
 
 เริ่มต้น Expo:
 
