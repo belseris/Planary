@@ -15,7 +15,7 @@ diary.py - API Endpoints สำหรับจัดการไดอารี�
 - ใช้ default mood "😌" ถ้าไม่ส่ง mood มา (เพื่อป้องกัน NOT NULL error)
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from db.session import get_db
 from models.diary import Diary
@@ -23,6 +23,10 @@ from models.user import User
 from schemas.diary import DiaryCreate, DiaryUpdate, DiaryResponse
 from routers.profile import current_user
 import datetime
+from pathlib import Path
+import uuid
+from typing import List
+from core.config import settings
 
 # Legacy mood emojis ที่รองรับ (เก็บไว้เพื่อ backward compatibility)
 # Include emojis from YesterdayDiaryModal: 😄 (score >= 4), 😐 (score === 3), 😞 (score < 3)
@@ -186,4 +190,105 @@ def delete_diary(diary_id: str, db: Session = Depends(get_db), me: User = Depend
         raise HTTPException(status_code=404, detail="ไม่พบรายการ")
     db.delete(row)
     db.commit()
+    return None
+
+# -------------------------------
+# Image management for diaries (filesystem only, no DB migration)
+# -------------------------------
+
+ALLOWED_IMAGE_EXTS = {"jpg", "jpeg", "png", "webp"}
+
+def _diary_image_dir(diary_id: str) -> Path:
+    return Path(settings.media_dir) / "diary_images" / str(diary_id)
+
+def _ensure_owner(diary_id: str, db: Session, me: User) -> Diary:
+    row = db.query(Diary).filter(Diary.id == diary_id, Diary.user_id == me.id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="ไม่พบรายการ")
+    return row
+
+def _list_image_files(folder: Path) -> List[str]:
+    if not folder.exists():
+        return []
+    files = []
+    for p in folder.iterdir():
+        if p.is_file():
+            ext = p.suffix.lower().lstrip(".")
+            if ext in ALLOWED_IMAGE_EXTS:
+                files.append(p.name)
+    return sorted(files)
+
+def _image_url(diary_id: str, filename: str) -> str:
+    return f"/media/diary_images/{diary_id}/{filename}"
+
+@router.get("/{diary_id}/images")
+def list_diary_images(diary_id: str, db: Session = Depends(get_db), me: User = Depends(current_user)):
+    _ensure_owner(diary_id, db, me)
+    folder = _diary_image_dir(diary_id)
+    files = _list_image_files(folder)
+    return {
+        "count": len(files),
+        "images": [{"name": f, "url": _image_url(diary_id, f)} for f in files],
+    }
+
+@router.post("/{diary_id}/images", status_code=201)
+async def upload_diary_images(
+    diary_id: str,
+    files: List[UploadFile] = File(...),
+    db: Session = Depends(get_db),
+    me: User = Depends(current_user)
+):
+    _ensure_owner(diary_id, db, me)
+    folder = _diary_image_dir(diary_id)
+    existing = _list_image_files(folder)
+
+    if len(existing) >= 3:
+        raise HTTPException(status_code=400, detail="บันทึกนี้มีรูปครบ 3 รูปแล้ว")
+    if not files:
+        raise HTTPException(status_code=400, detail="กรุณาเลือกไฟล์รูปอย่างน้อย 1 รูป")
+
+    remaining_slots = 3 - len(existing)
+    folder.mkdir(parents=True, exist_ok=True)
+
+    added: List[str] = []
+    for upload in files[:remaining_slots]:
+        if not upload.content_type or not upload.content_type.startswith("image/"):
+            raise HTTPException(status_code=400, detail=f"ไฟล์ {upload.filename} ไม่ใช่รูปภาพ")
+
+        ext = Path(upload.filename or "").suffix.lower().lstrip(".") or "jpg"
+        if ext not in ALLOWED_IMAGE_EXTS:
+            ext = "jpg"
+
+        filename = f"{uuid.uuid4().hex}.{ext}"
+        target = folder / filename
+        try:
+            content = await upload.read()
+            target.write_bytes(content)
+        except Exception as exc:  # pragma: no cover - file system error
+            raise HTTPException(status_code=500, detail=f"บันทึกรูปล้มเหลว: {exc}")
+
+        added.append(filename)
+
+    new_existing = existing + added
+    return {
+        "added": [{"name": n, "url": _image_url(diary_id, n)} for n in added],
+        "remaining_slots": max(0, 3 - len(new_existing)),
+    }
+
+@router.delete("/{diary_id}/images/{filename}", status_code=204)
+def delete_diary_image(
+    diary_id: str,
+    filename: str,
+    db: Session = Depends(get_db),
+    me: User = Depends(current_user)
+):
+    _ensure_owner(diary_id, db, me)
+    folder = _diary_image_dir(diary_id)
+    target = folder / filename
+    if not target.exists():
+        raise HTTPException(status_code=404, detail="ไม่พบไฟล์นี้ในบันทึก")
+    try:
+        target.unlink()
+    except Exception as exc:  # pragma: no cover - file system error
+        raise HTTPException(status_code=500, detail=f"ลบไฟล์ไม่สำเร็จ: {exc}")
     return None

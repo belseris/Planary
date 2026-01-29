@@ -232,6 +232,103 @@ def create_activity(payload: ActivityCreate, db: Session = Depends(get_db), me: 
     db.refresh(row)
     return row
 
+@router.get("/upcoming", response_model=list)
+def get_upcoming_activities(
+    db: Session = Depends(get_db),
+    me: User = Depends(current_user)
+):
+    """
+    ดึงกิจกรรมที่จะมาถึงใน 30 นาทีข้างหน้า (สำหรับ background notification)
+    
+    Logic:
+    - Activity time >= now (hasn't passed yet)
+    - Activity time <= now + 30 minutes (within notification window)
+    """
+    from datetime import datetime, timedelta
+    
+    now = datetime.now()
+    today = now.date()
+    window_start = now
+    window_end = now + timedelta(minutes=30)
+    
+    activities = db.query(Activity).filter(
+        Activity.user_id == me.id,
+        Activity.date == today,
+        Activity.all_day == False,
+        Activity.remind == True,
+        Activity.notification_sent == False,
+        Activity.status.notin_(["done", "cancelled"]),
+        Activity.time.isnot(None)
+    ).all()
+    
+    upcoming = []
+    for act in activities:
+        activity_datetime = datetime.combine(act.date, act.time)
+        
+        # Check if activity is within next 30 minutes
+        if window_start <= activity_datetime <= window_end:
+            minutes_until = int((activity_datetime - now).total_seconds() / 60)
+            
+            upcoming.append({
+                "id": str(act.id),
+                "title": act.title,
+                "time": act.time.strftime("%H:%M"),
+                "category": act.category,
+                "minutes_until": minutes_until,
+                "remind_sound": act.remind_sound,
+                "remind_type": act.remind_type or "simple"
+            })
+    
+    return upcoming
+
+
+@router.get("/debug/all-today", response_model=list)
+def debug_all_activities_today(
+    db: Session = Depends(get_db),
+    me: User = Depends(current_user)
+):
+    """
+    Debug endpoint: ดึงกิจกรรมทั้งหมดของวันนี้ (ไม่มี filter เวลา)
+    """
+    from datetime import datetime, timedelta
+    
+    now = datetime.now()
+    today = now.date()
+    
+    activities = db.query(Activity).filter(
+        Activity.user_id == me.id,
+        Activity.date == today,
+        Activity.all_day == False,
+        Activity.time.isnot(None)
+    ).all()
+    
+    result = []
+    for act in activities:
+        activity_datetime = datetime.combine(act.date, act.time)
+        minutes_until = int((activity_datetime - now).total_seconds() / 60)
+        
+        result.append({
+            "id": str(act.id),
+            "title": act.title,
+            "time": act.time.strftime("%H:%M"),
+            "minutes_until": minutes_until,
+            "remind": act.remind,
+            "remind_offset_min": act.remind_offset_min,
+            "status": act.status,
+            "notification_sent": act.notification_sent,
+            "all_day": act.all_day,
+            "eligible_for_notification": (
+                act.remind == True and
+                act.notification_sent == False and
+                act.status not in ["done", "cancelled"] and
+                0 <= minutes_until <= 30
+            )
+        })
+    
+    return result
+
+
+
 @router.get("/{activity_id}", response_model=ActivityOut)
 def get_activity(activity_id: UUID, db: Session = Depends(get_db), me: User = Depends(current_user)):
     """
@@ -295,3 +392,6 @@ def delete_activity(
     db.delete(row)
     db.commit()
     return
+
+
+

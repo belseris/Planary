@@ -17,6 +17,7 @@ Token format:
 - Frontend ส่งกลับมาใน header: Authorization: Bearer <token>
 """
 
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from db.session import get_db
@@ -25,6 +26,7 @@ from core.security import verify_password, create_access_token
 from schemas.login import LoginRequest, TokenResponse
 
 router = APIRouter(prefix="/login", tags=["login"])
+logger = logging.getLogger(__name__)
 
 @router.post("/token", response_model=TokenResponse)
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
@@ -43,13 +45,17 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
     """
     # หา user ด้วย email
     user = db.query(User).filter(User.email == payload.email).first()
-    
+
     # ตรวจสอบว่า user มีอยู่และรหัสผ่านถูกต้อง
     try:
         password_ok = verify_password(payload.password, user.password_hash) if user else False
     except ValueError:
         # bcrypt limit: 72 bytes
         raise HTTPException(status_code=400, detail="รหัสผ่านยาวเกินไป (สูงสุด 72 อักขระ)")
+    except Exception:
+        # กรณี hash เก่า/รูปแบบไม่รองรับ จะไม่ส่ง 500 กลับไป
+        logger.exception("Password verification failed")
+        raise HTTPException(status_code=400, detail="รหัสผ่านไม่ถูกต้องหรือรูปแบบรหัสผ่านไม่รองรับ")
 
     if not user or not password_ok:
         raise HTTPException(
@@ -58,7 +64,11 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
         )
     
     # สร้าง JWT token พร้อม user_id
-    token = create_access_token(str(user.id))
+    try:
+        token = create_access_token(str(user.id))
+    except Exception:
+        logger.exception("Token creation failed")
+        raise HTTPException(status_code=500, detail="ไม่สามารถออกโทเคนได้")
     
     # ส่ง token กลับไป
     return TokenResponse(access_token=token)

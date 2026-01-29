@@ -21,7 +21,10 @@ export default function EditActivityScreen({ route, navigation }) {
     status: "normal",
     notes: "",
     subtasks: [],
-    // ✅ 2. ลบ repeat_config ออก
+    remind: false,
+    remind_offset_min: 15,
+    remind_sound: true,
+    remind_type: "simple",
   });
   const [subtaskText, setSubtaskText] = useState("");
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -45,6 +48,10 @@ export default function EditActivityScreen({ route, navigation }) {
             status: data.status || "normal",
             notes: data.notes || "",
             subtasks: data.subtasks || [],
+            remind: data.remind || false,
+            remind_offset_min: data.remind_offset_min || 15,
+            remind_sound: data.remind_sound !== undefined ? data.remind_sound : true,
+            remind_type: data.remind_type || "simple",
           });
         } catch (error) { Alert.alert("Error", "ไม่สามารถโหลดข้อมูลได้"); }
       };
@@ -185,7 +192,56 @@ export default function EditActivityScreen({ route, navigation }) {
             </View>
         </View>
         
-        {/* ✅ 4. ลบ Section "ทำซ้ำ" (Repeat) ออก */}
+        
+        {/* Notification Settings
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>🔔 การแจ้งเตือน</Text>
+          <View style={styles.row}>
+            <Ionicons name="notifications-outline" size={24} color="#555" />
+            <Text style={styles.label}>เปิดการแจ้งเตือน</Text>
+            <Switch 
+              value={form.remind} 
+              onValueChange={(val) => handleInputChange("remind", val)} 
+            />
+          </View>
+          
+          {form.remind && (
+            <>
+              <View style={styles.row}>
+                <Ionicons name="time-outline" size={24} color="#555" />
+                <Text style={styles.label}>แจ้งก่อน</Text>
+                <View style={styles.pickerContainer}>
+                  {[5, 10, 15, 30, 60].map(min => (
+                    <TouchableOpacity
+                      key={min}
+                      style={[
+                        styles.timeChip,
+                        form.remind_offset_min === min && styles.timeChipSelected
+                      ]}
+                      onPress={() => handleInputChange("remind_offset_min", min)}
+                    >
+                      <Text style={[
+                        styles.timeChipText,
+                        form.remind_offset_min === min && styles.timeChipTextSelected
+                      ]}>
+                        {min < 60 ? `${min} นาที` : `${min / 60} ชั่วโมง`}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+              
+              <View style={styles.row}>
+                <Ionicons name="volume-high-outline" size={24} color="#555" />
+                <Text style={styles.label}>เสียงแจ้งเตือน</Text>
+                <Switch 
+                  value={form.remind_sound} 
+                  onValueChange={(val) => handleInputChange("remind_sound", val)} 
+                />
+              </View>
+            </>
+          )}
+        </View> */}
         
         {/* Subtasks */}
         <View style={styles.section}>
@@ -382,6 +438,34 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   chipTextSelected: { 
+    color: '#1f6f8b',
+    fontWeight: '700',
+  },
+  pickerContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginLeft: 8,
+  },
+  timeChip: {
+    backgroundColor: '#f0f3f7',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  timeChipSelected: {
+    backgroundColor: '#e8f4f8',
+    borderColor: '#1f6f8b',
+  },
+  timeChipText: {
+    color: '#4a4a4a',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  timeChipTextSelected: {
     color: '#1f6f8b',
     fontWeight: '700',
   },

@@ -24,3 +24,7 @@ export const updateActivity = (id, data) => {
 export const deleteActivity = (id) => {
   return apiClient.delete(`/activities/${id}`);
 };
+
+export const getUpcomingActivities = () => {
+  return apiClient.get('/activities/upcoming');
+};

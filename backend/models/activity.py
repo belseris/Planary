@@ -55,6 +55,9 @@ class Activity(Base):
     # Reminder settings
     remind = Column(Boolean, default=False)  # เปิด/ปิดการแจ้งเตือน
     remind_offset_min = Column(Integer, default=5)  # แจ้งเตือนก่อนกี่นาที (default 5 นาที)
+    remind_type = Column(String(20), default="simple")  # "simple" | "detailed" | "urgent"
+    remind_sound = Column(Boolean, default=True)  # เปิด/ปิดเสียง
+    notification_sent = Column(Boolean, default=False)  # ส่งแจ้งเตือนแล้วหรือยัง
     
     # Notes: รายละเอียดเพิ่มเติม
     notes = Column(String(2000), nullable=True)

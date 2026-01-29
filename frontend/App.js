@@ -5,18 +5,22 @@
  * 1. ตรวจสอบ JWT token ว่าผู้ใช้เข้าสู่ระบบอยู่หรือไม่
  * 2. กำหนด Navigation Structure (Stack + Tab Navigator)
  * 3. จัดการ Auto-login และ Auto-diary creation
+ * 4. จัดการ Notification Handler และ Background Fetch
  */
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Notifications from 'expo-notifications';
 import { initAutoDiary } from "./src/autoDiaryService";
 import YesterdayDiaryModal from './src/components/YesterdayDiaryModal';
 import { listDiaries } from './src/api';
+import { requestNotificationPermission } from './src/services/notificationService';
+import { registerBackgroundFetch } from './src/services/backgroundFetchService';
 
 // Import หน้าจอทั้งหมด (11 screens)
 import LoginScreen from "./src/screens/Login";
@@ -30,6 +34,7 @@ import EditActivity from "./src/screens/EditActivity";
 import ActivityDetailScreen from "./src/screens/ActivityDetail";
 import EditRoutineScreen from "./src/screens/EditRoutine";
 import TrendsScreen from "./src/screens/Trends";
+import DebugScreen from "./src/screens/DebugScreen";
 
 // สร้าง Navigator instances
 const Stack = createNativeStackNavigator(); // สำหรับ navigation แบบ push/pop
@@ -83,12 +88,18 @@ function MainTabs() {
  * 2. ถ้ามี token → ไป Main (Tab Navigator) + เรียก initAutoDiary()
  * 3. ถ้าไม่มี token → ไป Login
  * 4. สร้าง Stack Navigator สำหรับทุกหน้าจอ
+ * 5. Setup notification handler และ background fetch
  */
 export default function App() {
   // State สำหรับเก็บ initial route (null = กำลังโหลด)
   const [initial, setInitial] = useState(null);
   const [showYesterdayModal, setShowYesterdayModal] = useState(false);
   const [yesterdayISO, setYesterdayISO] = useState(null);
+  
+  // Ref สำหรับ navigation
+  const navigationRef = useRef();
+  const notificationListener = useRef();
+  const responseListener = useRef();
 
   // ตรวจสอบ auth status เมื่อแอปเปิดครั้งแรก
   useEffect(() => {
@@ -99,6 +110,13 @@ export default function App() {
       setInitial(token ? "Main" : "Login");
       
       if (token) {
+        // Setup notification permissions และ background fetch
+        const hasPermission = await requestNotificationPermission();
+        if (hasPermission) {
+          await registerBackgroundFetch();
+          console.log('✅ Notification system ready');
+        }
+
         // คำนวณวันที่เมื่อวาน
         const today = new Date(); const y = new Date(today); y.setDate(today.getDate() - 1);
         const iso = `${y.getFullYear()}-${String(y.getMonth()+1).padStart(2,'0')}-${String(y.getDate()).padStart(2,'0')}`;
@@ -122,6 +140,32 @@ export default function App() {
     })();
   }, []);
 
+  // Setup notification listeners (เมื่อกด notification)
+  useEffect(() => {
+    // Listener: เมื่อได้รับ notification ขณะที่ app เปิดอยู่
+    notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
+      console.log('📬 Notification received:', notification);
+    });
+
+    // Listener: เมื่อผู้ใช้กด notification
+    responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
+      const data = response.notification.request.content.data;
+      
+      // ถ้าเป็น activity reminder → เปิดหน้า ActivityDetail
+      if (data.type === 'activity_reminder' && data.activityId) {
+        navigationRef.current?.navigate('ActivityDetail', { 
+          activityId: data.activityId 
+        });
+      }
+    });
+
+    // Cleanup listeners
+    return () => {
+      Notifications.removeNotificationSubscription(notificationListener.current);
+      Notifications.removeNotificationSubscription(responseListener.current);
+    };
+  }, []);
+
   // แสดงหน้าว่างขณะโหลด (ป้องกันหน้ากระพริบ)
   if (initial === null) {
     return null;
@@ -129,7 +173,7 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <NavigationContainer>
+      <NavigationContainer ref={navigationRef}>
       {showYesterdayModal && yesterdayISO && (
         <YesterdayDiaryModal
           visible={showYesterdayModal}
@@ -154,6 +198,7 @@ export default function App() {
         <Stack.Screen name="EditActivity" component={EditActivity} options={{ title: "สิ่งที่ต้องทำ" }} />
         <Stack.Screen name="ActivityDetail" component={ActivityDetailScreen} options={{ title: "รายละเอียดกิจกรรม" }} />
         <Stack.Screen name="EditRoutine" component={EditRoutineScreen} options={{ title: "แม่แบบกิจกรรม" }} />
+        <Stack.Screen name="Debug" component={DebugScreen} options={{ title: "🔍 Debug Notifications" }} />
       </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>

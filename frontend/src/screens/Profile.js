@@ -23,7 +23,7 @@
 
 // screens/ProfileScreen.js
 import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { View, Text, StyleSheet, Alert, ScrollView, ActivityIndicator, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, Alert, ScrollView, ActivityIndicator, TouchableOpacity, Modal, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -75,6 +75,7 @@ export default function ProfileScreen({ navigation }) {
     const [allRoutines, setAllRoutines] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedDate, setSelectedDate] = useState(toDateString(new Date()));
+    const [settingsVisible, setSettingsVisible] = useState(false);
     const week = useWeek(selectedDate);
 
     // ✅ 2. โหลดข้อมูล Profile และ "แม่แบบ" ทั้งหมด
@@ -133,22 +134,40 @@ export default function ProfileScreen({ navigation }) {
             <ScrollView>
                 {/* --- ส่วนข้อมูลผู้ใช้ --- */}
                 <View style={styles.profileHeader}>
-                    <Text style={styles.username}>{me?.username || 'ผู้ใช้งาน'}</Text>
+                                        <View style={styles.headerTopRow}>
+                                                <Text style={styles.username}>{me?.username || 'ผู้ใช้งาน'}</Text>
+                                                <TouchableOpacity style={styles.settingsButton} onPress={() => setSettingsVisible(true)}>
+                                                        <Ionicons name="settings-outline" size={20} color="#1f6f8b" />
+                                                </TouchableOpacity>
+                                        </View>
                     <Text style={styles.userInfo}>อีเมล: {me?.email}</Text>
                     {me?.age && <Text style={styles.userInfo}>อายุ: {me.age} ปี</Text>}
                 </View>
 
-                {/* --- ส่วนปุ่มจัดการ --- */}
-                <View style={styles.buttonContainer}>
-                    <TouchableOpacity style={styles.profileButton} onPress={() => navigation.navigate("EditProfile", { me })}>
-                        <Ionicons name="pencil-outline" size={18} color="#fff" />
-                        <Text style={styles.profileButtonText}>แก้ไขโปรไฟล์</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.profileButton, styles.logoutButton]} onPress={handleLogout}>
-                        <Ionicons name="log-out-outline" size={18} color="#fff" />
-                        <Text style={styles.profileButtonText}>ออกจากระบบ</Text>
-                    </TouchableOpacity>
-                </View>
+                                {/* --- เมนูตั้งค่า (ฟันเฟือง) --- */}
+                                <Modal
+                                    visible={settingsVisible}
+                                    transparent
+                                    animationType="fade"
+                                    onRequestClose={() => setSettingsVisible(false)}
+                                >
+                                    <Pressable style={styles.modalBackdrop} onPress={() => setSettingsVisible(false)}>
+                                        <View style={styles.settingsMenu}>
+                                            <TouchableOpacity style={styles.menuItem} onPress={() => { setSettingsVisible(false); navigation.navigate("EditProfile", { me }); }}>
+                                                <Ionicons name="pencil-outline" size={18} color="#1f6f8b" />
+                                                <Text style={styles.menuText}>แก้ไขโปรไฟล์</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity style={styles.menuItem} onPress={() => { setSettingsVisible(false); handleLogout(); }}>
+                                                <Ionicons name="log-out-outline" size={18} color="#d9534f" />
+                                                <Text style={styles.menuText}>ออกจากระบบ</Text>
+                                            </TouchableOpacity>
+                                            {/* <TouchableOpacity style={styles.menuItem} onPress={() => { setSettingsVisible(false); navigation.navigate("Debug"); }}>
+                                                <Ionicons name="bug-outline" size={18} color="#FF6B6B" />
+                                                <Text style={styles.menuText}>Debug</Text>
+                                            </TouchableOpacity> */}
+                                        </View>
+                                    </Pressable>
+                                </Modal>
 
                 {/* --- ส่วนจัดการแม่แบบ (Routine) --- */}
                 <View style={styles.plannerContainer}>
@@ -188,12 +207,14 @@ const styles = StyleSheet.create({
     centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     container: { flex: 1, backgroundColor: "#f7f8fa" },
     profileHeader: { paddingHorizontal: 20, paddingVertical: 16, backgroundColor: '#fff' },
+    headerTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     username: { fontSize: 22, fontWeight: "bold", color: '#1A202C' },
     userInfo: { fontSize: 14, color: '#718096', marginTop: 4 },
-    buttonContainer: { flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 16, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#f0f0f0' },
-    profileButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#1f6f8b', paddingVertical: 10, borderRadius: 8, marginHorizontal: 4 },
-    logoutButton: { backgroundColor: '#d9534f' },
-    profileButtonText: { color: '#fff', fontWeight: 'bold', marginLeft: 8, fontSize: 15 },
+    settingsButton: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#eef5f8', alignItems: 'center', justifyContent: 'center' },
+    modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.2)', justifyContent: 'flex-start' },
+    settingsMenu: { alignSelf: 'flex-end', marginRight: 16, marginTop: 8, backgroundColor: '#fff', borderRadius: 12, elevation: 6, paddingVertical: 8, width: 220, borderWidth: 1, borderColor: '#eee' },
+    menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 14 },
+    menuText: { marginLeft: 10, fontSize: 15, color: '#1A202C', fontWeight: '600' },
     plannerContainer: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 10, backgroundColor: '#fff', marginTop: 8, borderTopWidth: 1, borderTopColor: '#f0f0f0' },
     plannerTitle: { fontSize: 16, fontWeight: "bold", color: '#333', marginBottom: 16 },
     weekContainer: { flexDirection: "row", justifyContent: 'space-between' },

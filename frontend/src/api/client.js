@@ -22,6 +22,7 @@ import { Alert, Platform } from 'react-native';
 const getBaseUrl = () => {
   const envHost = process.env.EXPO_PUBLIC_API_HOST || process.env.API_HOST;
   if (envHost) return `http://${envHost}:8000`;
+  // Android Emulator uses 10.0.2.2 to reach host machine's localhost
   if (Platform.OS === 'android') return 'http://10.0.2.2:8000';
   return 'http://192.168.0.100:8000'; // replace with your host LAN IP when on iOS/device
 };

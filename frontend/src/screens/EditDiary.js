@@ -9,14 +9,16 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   View, Text, ScrollView, TextInput, TouchableOpacity,
-  StyleSheet, Alert, ActivityIndicator
+  StyleSheet, Alert, ActivityIndicator, Image
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'; // จัดการ safe area (notch)
 import { Ionicons } from "@expo/vector-icons"; // ไอคอน
+import * as ImagePicker from "expo-image-picker";
 
 // Import API functions - เชื่อมต่อกับ backend
-import { getDiary, createDiary, updateDiary, deleteDiary } from "../api/diary"; // CRUD operations สำหรับไดอารี่
+import { getDiary, createDiary, updateDiary, deleteDiary, listDiaryImages, uploadDiaryImages, deleteDiaryImage } from "../api/diary"; // CRUD operations สำหรับไดอารี่
 import { listActivities } from "../api/activities"; // ดึงรายการกิจกรรม (สำหรับสร้างสรุป)
+import { BASE_URL } from "../api/client";
 
 // Import helper functions
 import { getTagsForRating } from "../moodSystem"; // แปลงคะแนนดาว (1-5) เป็นชุดแท็กอารมณ์
@@ -99,6 +101,8 @@ export default function EditDiaryScreen({ route, navigation }) {
   const [moodTags, setMoodTags] = useState([]); // แท็กเพิ่มเติม (legacy)
   const [loading, setLoading] = useState(true); // สถานะการโหลด
   const [loadingSummary, setLoadingSummary] = useState(false); // สถานะการโหลดสรุปกิจกรรม
+  const [images, setImages] = useState([]); // รูปที่แนบกับบันทึก (จาก server)
+  const [uploadingImages, setUploadingImages] = useState(false); // สถานะอัปโหลดรูป
 
   // Tag options - ตรงกับ YesterdayDiaryModal
   const POSITIVE_TAGS = ['ของกินอร่อย', 'งานเสร็จ', 'พักผ่อน', 'แฟนน่ารัก', 'ออกกำลังกาย'];
@@ -119,6 +123,19 @@ export default function EditDiaryScreen({ route, navigation }) {
   };
 
   const toEmojis = (tags) => tags.map((t) => tagEmojiMap[t]).filter(Boolean);
+
+  // ============================================
+  // fetchImages() - โหลดไฟล์รูปของบันทึก
+  // ============================================
+  const fetchImages = useCallback(async () => {
+    if (!id) return;
+    try {
+      const res = await listDiaryImages(id);
+      setImages(res?.images || []);
+    } catch (err) {
+      console.warn("โหลดรูปไม่สำเร็จ", err);
+    }
+  }, [id]);
 
   // ============================================
   // load() - โหลดข้อมูลเมื่อเข้าหน้าจอ
@@ -187,6 +204,10 @@ export default function EditDiaryScreen({ route, navigation }) {
     load();
   }, [load]);
 
+  useEffect(() => {
+    fetchImages();
+  }, [fetchImages]);
+
   // ============================================
   // loadActivitySummary() - โหลดและสรุปกิจกรรม
   // ============================================
@@ -208,6 +229,72 @@ export default function EditDiaryScreen({ route, navigation }) {
     } finally {
       setLoadingSummary(false);
     }
+  };
+
+  // ============================================
+  // pickAndUpload() - เลือกและอัปโหลดรูปภาพ (สูงสุด 3 รูป)
+  // ============================================
+  const pickAndUpload = async () => {
+    if (!id) {
+      Alert.alert("ยังไม่มีรหัสบันทึก", "กรุณาบันทึกไดอารี่ก่อนแนบรูป");
+      return;
+    }
+
+    const remaining = Math.max(0, 3 - images.length);
+    if (remaining <= 0) {
+      Alert.alert("อัปโหลดครบแล้ว", "บันทึกนี้แนบรูปได้สูงสุด 3 รูป");
+      return;
+    }
+
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("ต้องการสิทธิ์เข้าถึงรูปภาพ", "กรุณาอนุญาตให้แอปเข้าถึงคลังรูปภาพ");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true,
+      selectionLimit: remaining,
+      quality: 0.8,
+    });
+
+    if (result.canceled) return;
+    const selected = result.assets?.slice(0, remaining) || [];
+    if (!selected.length) return;
+
+    try {
+      setUploadingImages(true);
+      await uploadDiaryImages(id, selected);
+      await fetchImages();
+    } catch (err) {
+      console.error(err);
+      Alert.alert("อัปโหลดไม่สำเร็จ", err?.detail || "ลองใหม่อีกครั้ง");
+    } finally {
+      setUploadingImages(false);
+    }
+  };
+
+  // ============================================
+  // onDeleteImage() - ลบไฟล์รูปจากบันทึก
+  // ============================================
+  const onDeleteImage = async (filename) => {
+    Alert.alert("ลบรูปนี้?", "ยืนยันการลบรูปออกจากบันทึก", [
+      { text: "ยกเลิก", style: "cancel" },
+      {
+        text: "ลบ",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await deleteDiaryImage(id, filename);
+            await fetchImages();
+          } catch (err) {
+            console.error(err);
+            Alert.alert("ลบไม่สำเร็จ", "ลองใหม่อีกครั้ง");
+          }
+        },
+      },
+    ]);
   };
 
   // ============================================
@@ -356,6 +443,47 @@ export default function EditDiaryScreen({ route, navigation }) {
         </View>
 
         {/* ============================================ */}
+        {/* Card: รูปประกอบบันทึก */}
+        {/* ============================================ */}
+        {id && (
+          <View style={styles.card}>
+            <View style={styles.imagesHeader}>
+              <Text style={styles.sectionTitle}>📷 รูปประกอบ</Text>
+              <TouchableOpacity
+                style={[styles.imageAddButton, (uploadingImages || images.length >= 3) && { opacity: 0.5 }]}
+                onPress={pickAndUpload}
+                disabled={uploadingImages || images.length >= 3}
+              >
+                {uploadingImages ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="image-outline" size={18} color="#fff" style={{ marginRight: 6 }} />
+                    <Text style={styles.imageAddText}>เพิ่มรูป ({Math.max(0, 3 - images.length)} ที่เหลือ)</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            {images.length === 0 ? (
+              <Text style={styles.hintText}>ยังไม่มีรูปแนบ</Text>
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageRow}>
+                {images.map((img) => (
+                  <View key={img.name} style={styles.imageItem}>
+                    <Image source={{ uri: `${BASE_URL}${img.url}` }} style={styles.imageThumb} />
+                    <TouchableOpacity style={styles.imageDelete} onPress={() => onDeleteImage(img.name)}>
+                      <Ionicons name="close" size={16} color="#fff" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+            <Text style={styles.hintText}>อัปโหลดได้สูงสุด 3 รูป (jpg/png/webp)</Text>
+          </View>
+        )}
+
+        {/* ============================================ */}
         {/* ปุ่มสรุปกิจกรรม */}
         {/* ============================================ */}
         <TouchableOpacity 
@@ -485,6 +613,15 @@ const styles = StyleSheet.create({
   tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8, justifyContent: 'center' },
   tagChip: { borderWidth: 1, borderColor: '#ddd', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: '#f9f9f9', shadowColor: '#000', shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 },
   tagText: { color: '#888', fontSize: 13 },
+
+  // Images block
+  imagesHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  imageAddButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1f6f8b', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 },
+  imageAddText: { color: '#fff', fontWeight: '700' },
+  imageRow: { marginTop: 8 },
+  imageItem: { marginRight: 12, position: 'relative' },
+  imageThumb: { width: 96, height: 96, borderRadius: 12, backgroundColor: '#e6e6e6' },
+  imageDelete: { position: 'absolute', top: -8, right: -8, backgroundColor: '#e74c3c', width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   
   // Selected tags display
   selectedTagsSection: {
