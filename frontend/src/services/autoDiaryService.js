@@ -11,8 +11,8 @@
  * - ผู้ใช้สามารถกรอกข้อมูลย้อนหลังได้ทีหลัง
  */
 
-import { createDiary, listDiaries, listActivities, meApi } from './api';
-import { generateActivitySummary } from './summarizeActivities';
+import { createDiary, listDiaries, listActivities, meApi } from '../api';
+import { generateActivitySummary } from '../utils/summarizeActivities';
 
 /**
  * ensurePreviousDayDiary - ตรวจสอบและสร้าง diary draft ของวันก่อนหน้า (ย้อนหลัง 7 วัน)

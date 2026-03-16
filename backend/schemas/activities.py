@@ -46,6 +46,7 @@ class ActivityCreate(BaseModel, _JsonMixin):
     remind_offset_min: int = 5
     remind_type: str = "simple"  # "simple" | "detailed" | "urgent"
     remind_sound: bool = True
+    notification_id: str | None = None  # Local Notification ID from Frontend
     notes: str | None = None
     subtasks: list[dict] | str | None = None
     
@@ -69,6 +70,7 @@ class ActivityUpdate(BaseModel, _JsonMixin):
     remind_offset_min: Optional[int] = None
     remind_type: Optional[str] = None
     remind_sound: Optional[bool] = None
+    notification_id: Optional[str] = None  # Local Notification ID from Frontend
     notes: Optional[str] = None
     subtasks: Optional[list[dict] | str | None] = None
     
@@ -90,6 +92,7 @@ class ActivityOut(BaseModel):
     remind_type: str | None = "simple"
     remind_sound: bool = True
     notification_sent: bool = False
+    notification_id: str | None = None  # Local Notification ID
     notes: str | None
     subtasks: list[dict] | None = None
     

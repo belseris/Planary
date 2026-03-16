@@ -141,3 +141,17 @@ def upload_avatar(file: UploadFile = File(...), db: Session = Depends(get_db), m
     db.commit()
     db.refresh(me)
     return me
+@router.delete("/account")
+def delete_account(db: Session = Depends(get_db), me: User = Depends(current_user)):
+    """
+    ลบบัญชีผู้ใช้ถาวร
+    บันทึก: การกระทำนี้ไม่สามารถย้อนกลับได้
+    """
+    try:
+        # ลบผู้ใช้จากฐานข้อมูล
+        db.delete(me)
+        db.commit()
+        return {"detail": "ลบบัญชีเสร็จสิ้น"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))

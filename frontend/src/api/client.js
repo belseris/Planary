@@ -1,8 +1,7 @@
 /**
  * src/api/client.js
  * Centralized Axios API Client
- * 
- * ฟีเจอร์:
+ * * ฟีเจอร์:
  * 1. กำหนด BASE_URL อัตโนมัติตาม Platform (Android/iOS)
  * 2. Request Interceptor: แนบ JWT token ทุกครั้งที่เรียก API
  * 3. Response Interceptor: จัดการ 401 Unauthorized (session expiry)
@@ -12,19 +11,19 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert, Platform } from 'react-native';
+import * as navigationService from '../services/navigationService';
 
 /**
- * กำหนด BASE_URL ตาม Platform:
- * - Android Emulator: 10.0.2.2 = host machine's localhost
- * - iOS Simulator/Physical device: ใช้ LAN IP ของเครื่อง
- * - Tunnel mode: ใช้ LAN IP เพื่อเข้าถึง backend บนเครือข่ายเดียวกัน
+ * กำหนด BASE_URL 
+ * เปลี่ยนมาใช้ IP เครื่องคอมพิวเตอร์ (192.168.10.147) แทน 
+ * เพื่อให้มือถือที่ต่อ WiFi เดียวกันสามารถยิง API เข้ามาหาคอมพิวเตอร์ได้
  */
 const getBaseUrl = () => {
   const envHost = process.env.EXPO_PUBLIC_API_HOST || process.env.API_HOST;
   if (envHost) return `http://${envHost}:8000`;
-  // Android Emulator uses 10.0.2.2 to reach host machine's localhost
-  if (Platform.OS === 'android') return 'http://10.0.2.2:8000';
-  return 'http://192.168.0.100:8000'; // replace with your host LAN IP when on iOS/device
+  
+  // ✅ ใช้ IP เครื่องจริง (192.168.10.147) สำหรับ Emulator
+  return 'http://172.20.10.3:8000'; 
 };
 
 export const BASE_URL = getBaseUrl();
@@ -60,25 +59,26 @@ apiClient.interceptors.request.use(
 /**
  * Response Interceptor
  * ทำงานหลังได้รับ response ทุกครั้ง
- * 
- * Success: คืน response.data โดยตรง (ไม่ต้อง .data ซ้ำ)
+ * * Success: คืน response.data โดยตรง (ไม่ต้อง .data ซ้ำ)
  * Error: 
- *   - 401 = Token หมดอายุ → แสดง Alert + ลบ token
- *   - อื่นๆ = คืน error message
+ * - 401 = Token หมดอายุ → แสดง Alert + ลบ token
+ * - อื่นๆ = คืน error message
  */
 apiClient.interceptors.response.use(
   (response) => response.data, // Auto-extract data
   async (error) => {
     // จัดการ 401 Unauthorized (session expiry)
     if (error.response?.status === 401) {
+      await AsyncStorage.removeItem('token');
+      
       Alert.alert(
         'เซสชันหมดอายุ',
         'กรุณาเข้าสู่ระบบใหม่อีกครั้ง',
         [{ 
           text: 'ตกลง', 
-          onPress: async () => {
-            await AsyncStorage.removeItem('token');
-            // Note: App.js จะจับการเปลี่ยนแปลงและ navigate ไป Login
+          onPress: () => {
+            // Reset navigation ไปหน้า Login (ลบ history ทั้งหมด)
+            navigationService.reset('Login');
           } 
         }]
       );

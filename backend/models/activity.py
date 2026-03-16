@@ -58,6 +58,7 @@ class Activity(Base):
     remind_type = Column(String(20), default="simple")  # "simple" | "detailed" | "urgent"
     remind_sound = Column(Boolean, default=True)  # เปิด/ปิดเสียง
     notification_sent = Column(Boolean, default=False)  # ส่งแจ้งเตือนแล้วหรือยัง
+    notification_id = Column(String(255), nullable=True)  # Local Notification ID (ใช้ใน cancel/update)
     
     # Notes: รายละเอียดเพิ่มเติม
     notes = Column(String(2000), nullable=True)

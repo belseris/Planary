@@ -20,9 +20,13 @@ const MonthlyCalendar = ({
   onDateSelect, 
   onMonthChange 
 }) => {
+  // selectedDate คือวันที่ที่ parent เลือกไว้ (string หรือ Date ที่ new Date อ่านได้)
   const currentDate = new Date(selectedDate);
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
+
+  // daysWithActivities เก็บรายการวันที่ของเดือนนี้ที่มีกิจกรรม 2 ประเภท
+  // routine: กิจกรรมประจำ, regular: กิจกรรมทั่วไป
   const [daysWithActivities, setDaysWithActivities] = useState({ routine: [], regular: [] });
   const [loading, setLoading] = useState(false);
 
@@ -46,9 +50,11 @@ const MonthlyCalendar = ({
 
   // คำนวณวันในเดือน
   const calendar = useMemo(() => {
+    // firstDay = วันแรกของเดือน, lastDay = วันสุดท้ายของเดือน
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
     const daysInMonth = lastDay.getDate();
+    // getDay(): 0=อาทิตย์ ... 6=เสาร์ ใช้กำหนดช่องว่างด้านหน้าก่อนวันที่ 1
     const startingDayOfWeek = firstDay.getDay();
 
     const days = [];
@@ -64,6 +70,7 @@ const MonthlyCalendar = ({
     }
 
     // เพิ่มช่องว่างสำหรับวันหลัง (ให้ปฏิทินเต็ม 6 แถว)
+    // วิธีคำนวณ: นับจำนวน cell ที่มีจริง -> ปัดขึ้นเป็นจำนวนแถว -> เติม null ให้ครบ
     const totalCells = days.length;
     const totalRows = Math.ceil(totalCells / 7);
     const totalCellsNeeded = totalRows * 7;
@@ -94,6 +101,7 @@ const MonthlyCalendar = ({
   const handleDateSelect = (day) => {
     if (!day) return;
     // สร้าง date string แบบ ISO (YYYY-MM-DD) เพื่อหลีกเลี่ยง timezone issue
+    // padStart ทำให้เดือน/วันเป็น 2 หลักเสมอ เช่น 3 -> 03
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     onDateSelect(dateStr);
   };
@@ -137,10 +145,13 @@ const MonthlyCalendar = ({
           </View>
         )}
         {!loading && calendar.map((day, index) => {
+          // isSelected: วันที่ใน cell ตรงกับวันที่ถูกเลือกในเดือนนี้
           const isSelected = day === selectedDay;
+          // isToday: ใช้ไฮไลต์วันที่ปัจจุบันของระบบ
           const isToday = isCurrentMonth && day === today.getDate();
           // สร้าง date string แบบ ISO เพื่อหลีกเลี่ยง timezone issue
           const dateString = day ? `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}` : null;
+          // เช็กว่ามีกิจกรรมในวันนั้นไหม เพื่อแสดงจุดสีใต้เลขวัน
           const hasRoutine = dateString && daysWithActivities.routine?.includes(dateString);
           const hasRegular = dateString && daysWithActivities.regular?.includes(dateString);
 

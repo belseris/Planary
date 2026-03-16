@@ -1,0 +1,2 @@
+ALTER TABLE routine_activities
+ADD COLUMN IF NOT EXISTS remind_sound BOOLEAN DEFAULT TRUE;

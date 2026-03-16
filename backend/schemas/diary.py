@@ -75,6 +75,7 @@ class DiaryResponse(BaseModel):
     mood_tags: List[str] | None = None
     tags: str | None = None
     activities: List[ActivityFeedback] | None = None
+    image_count: Optional[int] = None
 
     class Config:
         from_attributes = True

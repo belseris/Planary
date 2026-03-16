@@ -14,7 +14,7 @@ security.py - ระบบความปลอดภัย (Authentication & Au
 """
 
 from datetime import datetime, timedelta
-from jose import jwt
+from jose import jwt, JWTError, ExpiredSignatureError
 from passlib.context import CryptContext
 from core.config import settings
 
@@ -61,8 +61,63 @@ def create_access_token(subject: str) -> str:
         - exp: เวลาหมดอายุ (default 120 นาที จาก settings)
     """
     # คำนวณเวลาหมดอายุ = เวลาปัจจุบัน + ระยะเวลาที่กำหนดใน settings
-    expire = datetime.utcnow() + timedelta(minutes=settings.access_token_expire_minutes)
-    # สร้าง payload ที่มี user_id (sub) และเวลาหมดอายุ (exp)
-    payload = {"sub": subject, "exp": expire}
-    # เข้ารหัส payload เป็น JWT token ด้วย secret_key
+    # Backwards-compatible wrapper: create an access token
+    return create_token(subject, token_type="access")
+
+
+def create_token(subject: str, token_type: str = "access") -> str:
+    """
+    Create a JWT token, either 'access' or 'refresh'.
+    Tokens include 'sub', 'iat', 'exp', and 'type' claims.
+    """
+    now = datetime.utcnow()
+    if token_type == "access":
+        expire = now + timedelta(minutes=settings.access_token_expire_minutes)
+    elif token_type == "refresh":
+        expire = now + timedelta(days=settings.refresh_token_expire_days)
+    else:
+        # default to short lived
+        expire = now + timedelta(minutes=settings.access_token_expire_minutes)
+
+    payload = {"sub": subject, "iat": now, "exp": expire, "type": token_type}
     return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
+
+
+def decode_token(token: str) -> dict:
+    """
+    Decode and validate a JWT token. Raises HTTP-like exceptions upstream.
+    Returns the payload dict when valid.
+    """
+    try:
+        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+        return payload
+    except ExpiredSignatureError:
+        raise
+    except JWTError:
+        raise
+
+
+def validate_password_strength(password: str) -> None:
+    """
+    Validate password according to settings. Raises ValueError with a message on failure.
+    """
+    import re
+    s = settings
+
+    if len(password) < s.password_min_length:
+        raise ValueError(f"รหัสผ่านสั้นเกินไป ต้องมีความยาวอย่างน้อย {s.password_min_length} ตัวอักษร")
+
+    if s.password_require_upper and not re.search(r"[A-Z]", password):
+        raise ValueError("รหัสผ่านต้องมีตัวพิมพ์ใหญ่อย่างน้อย 1 ตัว")
+
+    if s.password_require_lower and not re.search(r"[a-z]", password):
+        raise ValueError("รหัสผ่านต้องมีตัวพิมพ์เล็กอย่างน้อย 1 ตัว")
+
+    if s.password_require_digit and not re.search(r"\d", password):
+        raise ValueError("รหัสผ่านต้องมีตัวเลขอย่างน้อย 1 ตัว")
+
+    if s.password_require_special and not re.search(r"[!@#$%^&*()_+\-=[\]{};':\"\\|,.<>/?]", password):
+        raise ValueError("รหัสผ่านต้องมีอักขระพิเศษอย่างน้อย 1 ตัว เช่น !@#$%")
+
+    # Passed all checks
+    return None

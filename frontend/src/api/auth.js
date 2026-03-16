@@ -9,6 +9,7 @@
  */
 
 import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiClient, { BASE_URL } from './client';
 
 /**
@@ -81,6 +82,101 @@ export const meApi = async () => {
     return data;
   } catch (error) {
     console.error('[Auth] meApi error:', {
+      message: error?.message,
+      response: error?.response || error,
+    });
+    throw error;
+  }
+};
+
+/**
+ * updateProfileApi - อัปเดตข้อมูลโปรไฟล์ผู้ใช้
+ * 
+ * @param {Object} profileData - { username, gender, age }
+ * @returns {Promise<Object>} ข้อมูลโปรไฟล์ที่อัปเดตแล้ว
+ */
+export const updateProfileApi = async (profileData) => {
+  try {
+    const data = await apiClient.put('/profile/update', profileData);
+    return data;
+  } catch (error) {
+    console.error('[Auth] updateProfileApi error:', {
+      message: error?.message,
+      response: error?.response || error,
+    });
+    throw error;
+  }
+};
+
+/**
+ * changePasswordApi - เปลี่ยนรหัสผ่าน
+ * 
+ * @param {Object} passwords - { old_password, new_password }
+ * @returns {Promise<Object>} ผลลัพธ์การเปลี่ยนรหัสผ่าน
+ */
+export const changePasswordApi = async (passwords) => {
+  try {
+    const data = await apiClient.patch('/profile/password', passwords);
+    return data;
+  } catch (error) {
+    console.error('[Auth] changePasswordApi error:', {
+      message: error?.message,
+      response: error?.response || error,
+    });
+    throw error;
+  }
+};
+
+/**
+ * uploadAvatarApi - อัปโหลดรูปโปรไฟล์
+ * 
+ * @param {string} uri - URI ของรูปภาพที่จะอัปโหลด
+ * @returns {Promise<Object>} { avatar_url }
+ */
+export const uploadAvatarApi = async (uri) => {
+  try {
+    const formData = new FormData();
+    const filename = uri.split('/').pop();
+    const match = /\.(\w+)$/.exec(filename);
+    const type = match ? `image/${match[1]}` : 'image/jpeg';
+
+    formData.append('file', {
+      uri,
+      name: filename,
+      type,
+    });
+
+    // ใช้ axios โดยตรงเพราะ FormData ต้องการ config พิเศษ
+    const token = await AsyncStorage.getItem('token');
+
+    const response = await axios.post(`${BASE_URL}/profile/avatar`, formData, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    
+    return response.data;
+  } catch (error) {
+    console.error('[Auth] uploadAvatarApi error:', {
+      message: error?.message,
+      response: error?.response?.data || error?.response || error,
+    });
+    throw error;
+  }
+};
+
+/**
+ * deleteAccountApi - ลบบัญชีผู้ใช้ถาวร
+ * 
+ * @returns {Promise<Object>} { detail: "ลบบัญชีเสร็จสิ้น" }
+ */
+export const deleteAccountApi = async () => {
+  try {
+    const data = await apiClient.delete('/profile/account');
+    return data;
+  } catch (error) {
+    console.error('[Auth] deleteAccountApi error:', {
       message: error?.message,
       response: error?.response || error,
     });

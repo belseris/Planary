@@ -13,7 +13,7 @@ Validation:
 - confirm_password: ต้องตรงกับ password (เช็คใน router)
 """
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from uuid import UUID
 
 class RegisterRequest(BaseModel):
@@ -23,6 +23,17 @@ class RegisterRequest(BaseModel):
     age: int = Field(..., ge=1, le=120)
     password: str = Field(..., min_length=6, max_length=72)
     confirm_password: str = Field(..., min_length=6, max_length=72)
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v: str):
+        # import here to avoid circular import at module load
+        from core.security import validate_password_strength
+        try:
+            validate_password_strength(v)
+        except ValueError as e:
+            raise ValueError(str(e))
+        return v
 
 class RegisterResponse(BaseModel):
     id: UUID

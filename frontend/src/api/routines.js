@@ -79,6 +79,14 @@ export function normalizeRoutinePayload(data = {}, allowPartial = false) {
     out.notes = null;
   }
 
+  // reminder_minutes: optional integer (0 = off)
+  if (data.reminder_minutes !== undefined) {
+    const n = Number(data.reminder_minutes);
+    out.reminder_minutes = Number.isFinite(n) ? n : 0;
+  } else if (!allowPartial) {
+    out.reminder_minutes = 0;
+  }
+
   // subtasks: optional array of objects
   if (data.subtasks !== undefined) {
     if (Array.isArray(data.subtasks) && data.subtasks.length > 0) {
@@ -96,6 +104,18 @@ export function normalizeRoutinePayload(data = {}, allowPartial = false) {
     }
   } else if (!allowPartial) {
     out.subtasks = null;
+  }
+
+  // remind_sound: optional boolean
+  if (data.remind_sound !== undefined) {
+    out.remind_sound = !!data.remind_sound;
+  } else if (!allowPartial) {
+    out.remind_sound = true;
+  }
+
+  // notification_id: optional string
+  if (data.notification_id !== undefined) {
+    out.notification_id = data.notification_id === null ? null : String(data.notification_id);
   }
 
   return out;

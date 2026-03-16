@@ -9,6 +9,10 @@ class RoutineActivityBase(BaseModel):
     time: Optional[datetime.time] = None
     notes: Optional[str] = Field(None, max_length=2000)
     subtasks: Optional[List[Dict[str, Any]]] = None
+    priority: Optional[str] = Field(None, example="medium")  # "low", "medium", "high"
+    reminder_minutes: Optional[int] = Field(None, example=15)  # นาทีที่แจ้งเตือน
+    remind_sound: Optional[bool] = True
+    notification_id: Optional[str] = None
 
 class RoutineActivityCreate(RoutineActivityBase):
     # Make day_of_week optional on the schema to be more forgiving to clients.
@@ -22,6 +26,10 @@ class RoutineActivityUpdate(BaseModel):
     time: Optional[datetime.time] = None
     notes: Optional[str] = Field(None, max_length=2000)
     subtasks: Optional[List[Dict[str, Any]]] = None
+    priority: Optional[str] = None
+    reminder_minutes: Optional[int] = None
+    remind_sound: Optional[bool] = None
+    notification_id: Optional[str] = None
 
 class RoutineActivityResponse(RoutineActivityBase):
     id: UUID

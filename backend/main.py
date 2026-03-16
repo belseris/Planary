@@ -22,6 +22,7 @@ from routers.activities import router as activities_router
 from core.config import settings
 from routers.routine_activities import router as routine_activities_router
 from routers.trends import router as trends_router
+from routers.token import router as token_router
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
@@ -63,6 +64,7 @@ app.include_router(diary_router)  # GET/POST/PUT/DELETE /diary - จัดกา
 app.include_router(activities_router)  # GET/POST/PUT/DELETE /activities - จัดการกิจกรรม
 app.include_router(routine_activities_router)  # GET/POST/PUT/DELETE /routine-activities - จัดการกิจกรรมประจำ
 app.include_router(trends_router)  # GET /trends/* - สำหรับหน้า Dashboard/Trends   
+app.include_router(token_router)  # POST /auth/refresh - แลก access token ใหม่ด้วย refresh token
 
 
 # Custom error handler สำหรับ validation errors (422 Unprocessable Entity)
@@ -89,5 +91,32 @@ async def validation_exception_handler(request, exc: RequestValidationError):
 	print('Body preview:', body_preview)  # ข้อมูลที่ส่งมา
 	print('================================\n')
 	
-	# ส่ง response กลับไปพร้อม error details
-	return JSONResponse(status_code=422, content={"detail": exc.errors()})
+	# ทำความสะอาด error details เพื่อให้ JSON serializable (เช่น ถ้ามี Exception objects)
+	cleaned = []
+	for e in exc.errors():
+		# shallow copy basic fields
+		err = {k: v for k, v in e.items() if k != 'ctx'}
+		ctx = e.get('ctx')
+		if isinstance(ctx, dict):
+			clean_ctx = {}
+			for k, v in ctx.items():
+				# convert exception objects or non-json values to strings
+				try:
+					import json
+					json.dumps(v)
+					clean_ctx[k] = v
+				except Exception:
+					clean_ctx[k] = str(v)
+			err['ctx'] = clean_ctx
+			# If the validator provided an Exception under 'error', use its message as the main msg
+			if 'error' in clean_ctx:
+				try:
+					err['msg'] = str(clean_ctx['error'])
+				except Exception:
+					pass
+		elif ctx is not None:
+			err['ctx'] = str(ctx)
+		cleaned.append(err)
+
+	# ส่ง response กลับไปพร้อม error details ที่ถูกทำให้ JSON-safe
+	return JSONResponse(status_code=422, content={"detail": cleaned})

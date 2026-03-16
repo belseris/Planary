@@ -11,7 +11,7 @@ profile.py - Pydantic Schemas สำหรับ Profile API
 - avatar อัปโหลดแยกต่างหากที่ POST /profile/avatar
 """
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from uuid import UUID
 
 class ProfileMe(BaseModel):
@@ -33,3 +33,13 @@ class ProfileUpdateRequest(BaseModel):
 class PasswordChangeRequest(BaseModel):
     old_password: str
     new_password: str = Field(..., min_length=6)
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, v: str):
+        from core.security import validate_password_strength
+        try:
+            validate_password_strength(v)
+        except ValueError as e:
+            raise ValueError(str(e))
+        return v

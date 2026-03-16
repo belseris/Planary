@@ -6,11 +6,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
-import * as TaskManager from 'expo-task-manager';
-import * as BackgroundFetch from 'expo-background-fetch';
-import { getUpcomingActivities } from '../api/activities';
 import { requestNotificationPermission } from './notificationService';
-import { checkBackgroundFetchStatus } from './backgroundFetchService';
 
 /**
  * ตรวจสอบทั้งหมด
@@ -24,6 +20,7 @@ export const runFullDiagnostics = async () => {
     // 1. ตรวจสอบ Token
     console.log('1️⃣  CHECK TOKEN');
     const token = await AsyncStorage.getItem('token');
+    // !!token แปลงค่าจริง/ปลอมเป็น boolean ชัดเจน
     const hasToken = !!token;
     console.log(`   Status: ${hasToken ? '✅ Found' : '❌ Not found'}`);
     if (hasToken) {
@@ -41,48 +38,16 @@ export const runFullDiagnostics = async () => {
     };
     console.log(`   Result: ${permissionMap[status] || status}`);
 
-    // 3. ตรวจสอบ Background Fetch
-    console.log('\n3️⃣  CHECK BACKGROUND FETCH');
-    const bgStatus = await checkBackgroundFetchStatus();
-    console.log(`   Available: ${bgStatus.status === BackgroundFetch.BackgroundFetchStatus.Available ? '✅' : '❌'}`);
-    console.log(`   Registered: ${bgStatus.isRegistered ? '✅' : '❌'}`);
-    console.log(`   Status: ${bgStatus.statusText}`);
-
-    // 4. ตรวจสอบ API Connection
-    console.log('\n4️⃣  CHECK API CONNECTION');
-    if (hasToken) {
-      try {
-        const response = await getUpcomingActivities();
-        const activities = response.data || [];
-        console.log(`   ✅ Connected`);
-        console.log(`   Activities: ${activities.length} upcoming`);
-        
-        if (activities.length > 0) {
-          console.log(`\n   📋 Upcoming activities:`);
-          activities.forEach((a, i) => {
-            console.log(`      ${i + 1}. ${a.title} (${a.minutes_until} min)`);
-          });
-        } else {
-          console.log(`   ⚠️  No activities in next 30 minutes`);
-        }
-      } catch (error) {
-        console.error(`   ❌ Failed: ${error.message}`);
-        if (error.response) {
-          console.error(`      Status: ${error.response.status}`);
-          console.error(`      Data: ${JSON.stringify(error.response.data)}`);
-        }
-      }
-    } else {
-      console.log(`   ❌ Cannot check - no token`);
-    }
-
-    // 5. ตรวจสอบ Pending Notifications
-    console.log('\n5️⃣  CHECK PENDING NOTIFICATIONS');
+    // 3. ตรวจสอบ Pending Notifications
+    console.log('\n3️⃣  CHECK PENDING NOTIFICATIONS');
     const pending = await Notifications.getAllScheduledNotificationsAsync();
     console.log(`   Count: ${pending.length}`);
     if (pending.length > 0) {
-      pending.slice(0, 3).forEach((n, i) => {
-        console.log(`   ${i + 1}. ${n.content.title} - ${n.content.body}`);
+      pending.slice(0, 5).forEach((n, i) => {
+        // แสดงแค่ 5 รายการแรกเพื่อไม่ให้ log ยาวเกินอ่านยาก
+        const trigger = n.trigger;
+        const triggerTime = trigger?.type === 'date' ? new Date(trigger.value).toLocaleString('th-TH') : 'Immediate';
+        console.log(`   ${i + 1}. ${n.content.title} - Trigger: ${triggerTime}`);
       });
     }
 
@@ -93,9 +58,7 @@ export const runFullDiagnostics = async () => {
     return {
       hasToken,
       permissionStatus: status,
-      backgroundFetchAvailable: bgStatus.status === BackgroundFetch.BackgroundFetchStatus.Available,
-      backgroundFetchRegistered: bgStatus.isRegistered,
-      upcomingActivities: hasToken ? await getUpcomingActivities() : null,
+      pendingNotifications: pending.length,
     };
   } catch (error) {
     console.error('❌ Diagnostics failed:', error);
@@ -157,6 +120,7 @@ export const resetNotificationSystem = async () => {
     console.log('✅ Cleared all pending notifications');
 
     // Request permission fresh
+    // เรียก helper เดิมเพื่อลดโค้ดซ้ำและคงพฤติกรรมการขอสิทธิ์ให้เหมือนกัน
     const hasPermission = await requestPermissionIfNeeded();
     
     console.log(`✅ System reset complete\n`);

@@ -22,13 +22,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from db.session import get_db
 from models.user import User
-from core.security import verify_password, create_access_token
-from schemas.login import LoginRequest, TokenResponse
+from core.security import verify_password, create_token
+from schemas.login import LoginRequest, TokenPairResponse
 
 router = APIRouter(prefix="/login", tags=["login"])
 logger = logging.getLogger(__name__)
 
-@router.post("/token", response_model=TokenResponse)
+@router.post("/token", response_model=TokenPairResponse)
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
     """
     เข้าสู่ระบบด้วย email และ password
@@ -63,12 +63,13 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
             detail="อีเมลหรือรหัสผ่านไม่ถูกต้อง"
         )
     
-    # สร้าง JWT token พร้อม user_id
+    # สร้าง JWT access + refresh token
     try:
-        token = create_access_token(str(user.id))
+        access = create_token(str(user.id), token_type="access")
+        refresh = create_token(str(user.id), token_type="refresh")
     except Exception:
         logger.exception("Token creation failed")
         raise HTTPException(status_code=500, detail="ไม่สามารถออกโทเคนได้")
-    
-    # ส่ง token กลับไป
-    return TokenResponse(access_token=token)
+
+    # ส่ง token คู่ (access + refresh) กลับไป
+    return TokenPairResponse(access_token=access, refresh_token=refresh)

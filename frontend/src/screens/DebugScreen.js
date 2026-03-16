@@ -1,5 +1,5 @@
 /**
- * DebugScreen.js - หน้าจอทดสอบ Notification แบบพื้นๆ
+ * DebugScreen.js - หน้าจอทดสอบ Notification แบบคลีนๆ
  */
 
 import React, { useState } from 'react';
@@ -14,6 +14,12 @@ import {
 
 import { requestPermissionIfNeeded } from '../services/debugNotifications';
 import { getUpcomingActivities } from '../api/activities';
+import { 
+  showActivityNotification, 
+  scheduleActivityNotification, 
+  getPendingNotifications, 
+  cancelAllNotifications 
+} from '../services/notificationService';
 
 export default function DebugScreen() {
   const [loading, setLoading] = useState(false);
@@ -25,7 +31,6 @@ export default function DebugScreen() {
 
   const clear = () => setOutput('');
 
-  // กันกรณี API คืนค่าเป็น array ตรงๆ หรือเป็น axios response { data: [...] }
   const extractActivities = (res) => {
     if (Array.isArray(res)) return res;
     if (Array.isArray(res?.data)) return res.data;
@@ -57,11 +62,6 @@ export default function DebugScreen() {
 
       if (activities.length === 0) {
         log('⚠️ No upcoming activities found');
-        log('สาเหตุที่เป็นไปได้:');
-        log('- ยังไม่มีกิจกรรม');
-        log('- กิจกรรมปิด remind (remind=false)');
-        log('- เป็น all-day หรือ done/cancelled');
-        log('- เวลาไม่เข้าเงื่อนไข upcoming ของ backend');
         return;
       }
 
@@ -71,7 +71,6 @@ export default function DebugScreen() {
         log(`   time: ${a?.time ?? '-'}`);
         log(`   minutes_until: ${a?.minutes_until ?? '-'}`);
         log(`   remind: ${a?.remind ?? '-'}`);
-        log(`   status: ${a?.status ?? '-'}`);
         log(`   id: ${a?.id ?? '-'}`);
       });
     } catch (e) {
@@ -86,15 +85,13 @@ export default function DebugScreen() {
     clear();
     log('Sending instant test notification...');
     try {
-      const { showActivityNotification } = require('../services/notificationService');
-
       const now = new Date();
       const pad = (n) => String(n).padStart(2, '0');
       const time = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
 
       const fakeActivity = {
         id: 'debug-test-1',
-        title: 'ทดสอบแจ้งเตือน ✅',
+        title: 'ทดสอบแจ้งเตือนด่วน ✅',
         time,
         remind: true,
         remind_sound: true,
@@ -102,7 +99,7 @@ export default function DebugScreen() {
       };
 
       await showActivityNotification(fakeActivity);
-      log('✅ Sent! (ดูที่ notification bar)');
+      log('✅ Sent! (น่าจะเด้งแล้ว ดูด้านบน)');
     } catch (e) {
       log(`❌ Error: ${e?.message || String(e)}`);
     } finally {
@@ -110,27 +107,66 @@ export default function DebugScreen() {
     }
   };
 
-  const handleManualNotify = async () => {
+  const handleScheduleTest = async () => {
     setLoading(true);
     clear();
-    log('Manual notify from upcoming activities...');
+    // 💡 ปรับเวลาเป็น 15 วินาที เพื่อให้แอนดรอยด์ตั้งนาฬิกาปลุกจริงๆ (บางรุ่นต่ำกว่านี้มันเด้งเลย)
+    log('🧪 ทดสอบ Scheduled Notification (รอ 15 วินาที)...');
     try {
-      const { showActivityNotification } = require('../services/notificationService');
+      const triggerDate = new Date(Date.now() + 15 * 1000); 
 
-      const res = await getUpcomingActivities();
-      const activities = extractActivities(res);
+      const notifId = await scheduleActivityNotification({
+        title: 'ทดสอบตั้งเวลาล่วงหน้า ⏰',
+        activityId: 'test-scheduled',
+        triggerDate,
+        remindSound: true,
+      });
 
-      if (activities.length === 0) {
-        log('❌ ไม่พบกิจกรรมที่จะส่งแจ้งเตือน');
-        log('ลองสร้างกิจกรรมทดสอบ: ตั้งเวลาอีก 10-15 นาที + เปิด remind ✅');
+      if (notifId) {
+        log(`✅ Scheduled สำเร็จ! (ID: ${notifId})`);
+        log(`⏰ รอประมาณ 15 วินาที... (ไม่ต้องทำอะไร เดี๋ยวมันเด้งเอง)`);
+        log('ℹ️ ถ้าเด้งทันที แปลว่าเครื่อง ignore timeInterval trigger');
+      } else {
+        log('❌ ไม่สามารถ schedule ได้');
+      }
+    } catch (e) {
+      log(`❌ Error: ${e?.message || String(e)}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCheckPending = async () => {
+    setLoading(true);
+    clear();
+    log('📋 ตรวจสอบ Pending Notifications...');
+    try {
+      const pending = await getPendingNotifications();
+
+      if (pending.length === 0) {
+        log('✅ ไม่มี notification ที่รออยู่');
         return;
       }
 
-      // แบบพื้นๆ: ส่งแค่ตัวแรกพอ
-      const a = activities[0];
-      log(`Sending: ${a?.title ?? a?.id ?? '(unknown)'}`);
-      await showActivityNotification(a);
-      log('✅ Sent! (ดูที่ notification bar)');
+      log(`✅ พบ ${pending.length} notification(s) ที่รออยู่:`);
+      pending.forEach((n, i) => {
+        log(`\n${i + 1}) ${n.content?.title || '(no title)'}`);
+        log(`   ID: ${n.identifier}`);
+      });
+    } catch (e) {
+      log(`❌ Error: ${e?.message || String(e)}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancelAll = async () => {
+    setLoading(true);
+    clear();
+    log('🗑️ ยกเลิก Notification ทั้งหมด...');
+    try {
+      await cancelAllNotifications();
+      log('✅ ยกเลิกทั้งหมดเรียบร้อย');
     } catch (e) {
       log(`❌ Error: ${e?.message || String(e)}`);
     } finally {
@@ -144,29 +180,69 @@ export default function DebugScreen() {
 
       <View style={styles.buttons}>
         <TouchableOpacity style={styles.btn} onPress={handleRequestPermission} disabled={loading}>
-          <Text style={styles.btnText}>Request Permission</Text>
+          <Text style={styles.btnText}>1. Request Permission</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.btn} onPress={handleCheckActivities} disabled={loading}>
-          <Text style={styles.btnText}>Check Activities</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.btn} onPress={handleManualNotify} disabled={loading}>
-          <Text style={styles.btnText}>Manual Notify</Text>
+          <Text style={styles.btnText}>Check API Activities</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.btn} onPress={handleInstantNotify} disabled={loading}>
-          <Text style={styles.btnText}>Instant Test</Text>
+          <Text style={styles.btnText}>⚡ Instant Test (เด้งทันที)</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={[styles.btn, styles.btnPrimary]} onPress={handleScheduleTest} disabled={loading}>
+          <Text style={styles.btnTextWhite}>⏳ Scheduled Test (รอ 15s)</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.btn} onPress={handleCheckPending} disabled={loading}>
+          <Text style={styles.btnText}>📋 Check Pending</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={[styles.btn, styles.btnDanger]} onPress={handleCancelAll} disabled={loading}>
+          <Text style={styles.btnTextWhite}>🗑️ Cancel All</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={[styles.btn, { backgroundColor: '#8e44ad', borderColor: '#8e44ad' }]} 
+          onPress={async () => {
+            setLoading(true);
+            clear();
+            log('🚀 เริ่ม Raw Test (รอ 15 วินาที)...');
+            try {
+              const Notifications = require('expo-notifications');
+              await Notifications.scheduleNotificationAsync({
+                content: {
+                  title: "🤖 Raw Test สำเร็จ!",
+                  body: "ถ้ารอครบ 15 วิแล้วเพิ่งเด้ง แปลว่าเครื่องปกติแล้ว!",
+                },
+                trigger: {
+                  type: 'timeInterval',
+                  seconds: 15,
+                  repeats: false,
+                  channelId: 'default',
+                },
+              });
+              log('✅ Raw Scheduled! รอดูว่าเด้งทันทีไหม...');
+            } catch (e) {
+              log(`❌ Error: ${e.message}`);
+            } finally {
+              setLoading(false);
+            }
+          }}
+          disabled={loading}
+        >
+          <Text style={styles.btnTextWhite}>🚀 Raw Test ดิบ (15s)</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.btn} onPress={clear} disabled={loading}>
-          <Text style={styles.btnText}>Clear</Text>
+          <Text style={styles.btnText}>Clear Log</Text>
         </TouchableOpacity>
       </View>
 
       {loading && (
         <View style={{ padding: 10 }}>
-          <ActivityIndicator />
+          <ActivityIndicator color="#1f6f8b" />
         </View>
       )}
 
@@ -179,7 +255,7 @@ export default function DebugScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 12, backgroundColor: '#fff' },
-  title: { fontSize: 18, fontWeight: '700', marginBottom: 10 },
+  title: { fontSize: 18, fontWeight: '700', marginBottom: 15 },
   buttons: { marginBottom: 10 },
   btn: {
     padding: 12,
@@ -188,8 +264,18 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 8,
     alignItems: 'center',
+    backgroundColor: '#fff',
   },
-  btnText: { fontSize: 14, fontWeight: '600' },
-  output: { flex: 1, borderWidth: 1, borderColor: '#eee', borderRadius: 8, padding: 10 },
-  outputText: { fontFamily: 'monospace', fontSize: 12, lineHeight: 18 },
+  btnPrimary: {
+    backgroundColor: '#1f6f8b',
+    borderColor: '#1f6f8b',
+  },
+  btnDanger: {
+    backgroundColor: '#e74c3c',
+    borderColor: '#e74c3c',
+  },
+  btnText: { fontSize: 14, fontWeight: '600', color: '#333' },
+  btnTextWhite: { fontSize: 14, fontWeight: '600', color: '#fff' },
+  output: { flex: 1, borderWidth: 1, borderColor: '#eee', borderRadius: 8, padding: 10, backgroundColor: '#fafafa' },
+  outputText: { fontFamily: 'monospace', fontSize: 12, lineHeight: 18, color: '#333' },
 });

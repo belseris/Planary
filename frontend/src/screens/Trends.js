@@ -1,3 +1,12 @@
+/**
+ * src/screens/TrendsScreen.js (หรือไฟล์ที่คุณใช้งานอยู่)
+ * อัปเดต UX/UI: 
+ * - ปรับการกระจาย Layout ให้ Clean & Modern
+ * - ใช้ Icon ดาว (⭐) สำหรับ Positive/Negative
+ * - ปรับ BarChart ไม่ให้แสดงจุดทศนิยม
+ * - จัดระเบียบ ChipList (ปัจจัยอารมณ์) ให้เป็นระเบียบ
+ */
+
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
@@ -11,8 +20,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { LineChart, PieChart, BarChart } from 'react-native-chart-kit';
-import { getDashboardSummary } from '../api/trends';
+import { PieChart, BarChart } from 'react-native-chart-kit';
+import { getDashboardSummary } from '../api/trends'; // แก้ไข path ให้ตรงกับโปรเจกต์คุณ
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -26,9 +35,9 @@ const THEME = {
   primary: '#1F6F8B',
   indigo: '#3F51B5',
   purple: '#9C27B0',
-  green: '#2E7D32',
-  red: '#C62828',
-  orange: '#FF9800',
+  green: '#10B981', // ปรับเฉดเขียวให้ดู Modern ขึ้น
+  red: '#EF4444',   // ปรับเฉดแดงให้ดู Modern ขึ้น
+  orange: '#F59E0B',
 };
 
 const PREVIOUS_LABEL = { week: 'สัปดาห์ที่แล้ว', month: 'เดือนที่แล้ว' };
@@ -86,7 +95,6 @@ function Card({ title, iconName, iconBg, iconColor, children, rightSlot }) {
         </View>
         {rightSlot ? <View>{rightSlot}</View> : null}
       </View>
-
       {children}
     </View>
   );
@@ -120,24 +128,30 @@ function Segmented({ value, onChange, leftLabel, rightLabel, leftValue, rightVal
   );
 }
 
-function ChipList({ items = [], max = 6 }) {
+function ChipList({ items = [], max = 6, isPositive }) {
   const list = items.slice(0, max);
   if (!list.length) return <Text style={styles.noDataText}>ไม่มีข้อมูล</Text>;
+
+  // ใช้ดาว (⭐) เป็นไอคอนหลักตามที่ผู้ใช้ต้องการ แต่เปลี่ยนสีพื้นหลังให้เข้ากับบริบทบวก/ลบ
+  const chipTheme = isPositive 
+    ? { bg: '#ECFDF5', border: '#D1FAE5', text: THEME.green } 
+    : { bg: '#FEF2F2', border: '#FEE2E2', text: THEME.red };
 
   return (
     <View style={styles.chipsWrap}>
       {list.map((it, idx) => {
-        const emoji = it.emoji || it.label || it.tag || 'แท็ก';
         const count = it.count ?? 0;
-        // Extract tag name/label if available
-        const tagName = it.tag || it.label || '';
+        const tagName = it.tag || it.label || 'กิจกรรม';
         return (
-          <View key={`${emoji}-${idx}`} style={styles.chipContainer}>
-            <View style={styles.chip}>
-              <Text style={styles.chipLabel}>{emoji}</Text>
-              <Text style={styles.chipCount}>x {count}</Text>
+          <View 
+            key={`${idx}`} 
+            style={[styles.chip, { backgroundColor: chipTheme.bg, borderColor: chipTheme.border }]}
+          >
+            <Text style={styles.chipEmoji}>⭐</Text>
+            <Text style={[styles.chipLabel, { color: chipTheme.text }]}>{tagName}</Text>
+            <View style={styles.chipBadge}>
+              <Text style={styles.chipBadgeText}>{count}</Text>
             </View>
-            {tagName && <Text style={styles.chipCaption}>{tagName}</Text>}
           </View>
         );
       })}
@@ -189,47 +203,22 @@ function Header({ period, setPeriod, offset, setOffset, displayPeriod }) {
 
 /* ------------------------------ Cards: My ------------------------------- */
 
-function MyMoodCard({ data, period }) {
+function MyMoodCard({ data }) {
   if (!data || data.average === undefined || data.average === null) return null;
 
   const {
     average,
     positive_avg,
     negative_avg,
-    trend_diff,
     logged_days,
     total_days,
-    daily = [],
   } = data;
 
-  const lastDaily = daily.slice(-7);
   const qualityText =
     logged_days !== undefined && total_days ? `บันทึกแล้ว ${logged_days} จาก ${total_days} วัน` : null;
 
-  const chartData = useMemo(() => {
-    if (!lastDaily.length) return null;
-    return {
-      labels: lastDaily.map(d => {
-        const dt = new Date(d.date);
-        return dt.getDate().toString();
-      }),
-      datasets: [{ data: lastDaily.map(d => d.score), strokeWidth: 2 }],
-    };
-  }, [lastDaily]);
-
-  const chartConfig = useMemo(
-    () => ({
-      backgroundColor: THEME.card,
-      backgroundGradientFrom: THEME.card,
-      backgroundGradientTo: THEME.card,
-      decimalPlaces: 1,
-      color: (opacity = 1) => `rgba(31, 111, 139, ${opacity})`,
-      labelColor: (opacity = 1) => `rgba(71, 84, 103, ${opacity})`,
-      propsForDots: { r: '4' },
-      propsForBackgroundLines: { stroke: '#EEF2F6' },
-    }),
-    [],
-  );
+  const positivePct = positive_avg !== undefined && positive_avg !== null ? (positive_avg / 5.0) * 100 : 0;
+  const negativePct = negative_avg !== undefined && negative_avg !== null ? (negative_avg / 5.0) * 100 : 0;
 
   return (
     <Card
@@ -237,32 +226,32 @@ function MyMoodCard({ data, period }) {
       iconName="happy-outline"
       iconBg="#E0F7FA"
       iconColor={THEME.primary}>
-      <View style={styles.metric3Row}>
-        <View style={styles.metricBox}>
-          <Text style={styles.metricLabel}>Overall</Text>
-          <View style={styles.metricValueRow}>
-            <Ionicons name="star" size={18} color="#F59E0B" style={styles.metricStar} />
-            <Text style={styles.metricValue}>{safeFixed(average, 1)}</Text>
+      {/* Overall Score */}
+      <View style={styles.bigCenterRow}>
+        <Text style={styles.bigNumber}>{safeFixed(average, 1)}</Text>
+        <Text style={styles.bigUnit}>/ 5.0</Text>
+      </View>
+      
+      {/* Positive/Negative Balance Bar */}
+      <View style={styles.moodBalanceContainer}>
+        <View style={styles.moodBalanceLabels}>
+          <View style={styles.moodBalanceLabelItem}>
+            <Text style={styles.moodEmojiStar}>⭐</Text>
+            <Text style={styles.moodBalanceLabelText}>Positive</Text>
+            <Text style={[styles.moodBalanceValue, { color: THEME.green }]}>{safeFixed(positive_avg, 1)}</Text>
           </View>
-          <Text style={styles.metricSub}>/ 5.0</Text>
+          <View style={styles.moodBalanceLabelItem}>
+            <Text style={[styles.moodBalanceValue, { color: THEME.red }]}>{safeFixed(negative_avg, 1)}</Text>
+            <Text style={styles.moodBalanceLabelText}>Negative</Text>
+            <Text style={styles.moodEmojiStar}>⭐</Text>
+          </View>
         </View>
-
-        <View style={styles.metricBox}>
-          <Text style={styles.metricLabel}>Positive</Text>
-          <View style={styles.metricValueRow}>
-            <Ionicons name="star" size={18} color="#2E7D32" style={styles.metricStar} />
-            <Text style={[styles.metricValue, { color: '#2E7D32' }]}>{safeFixed(positive_avg, 1)}</Text>
-          </View>
-          <Text style={styles.metricSub}>/ 5.0</Text>
-        </View>
-
-        <View style={styles.metricBox}>
-          <Text style={styles.metricLabel}>Negative</Text>
-          <View style={styles.metricValueRow}>
-            <Ionicons name="star" size={18} color="#F59E0B" style={styles.metricStar} />
-            <Text style={styles.metricValue}>{safeFixed(negative_avg, 1)}</Text>
-          </View>
-          <Text style={styles.metricSub}>/ 5.0</Text>
+        
+        <View style={styles.moodBalanceBar}>
+          <View style={[styles.moodBalancePositive, { width: `${positivePct}%` }]} />
+          {/* ช่องว่างตรงกลางเพื่อความสวยงาม */}
+          <View style={{ flex: 1, backgroundColor: '#F9FAFB' }} />
+          <View style={[styles.moodBalanceNegative, { width: `${negativePct}%` }]} />
         </View>
       </View>
 
@@ -279,7 +268,6 @@ function CompletionCard({ data }) {
   const pct = overall_rate > 1 ? overall_rate : overall_rate * 100;
   const done = Math.round(pct);
 
-  // Filter to show only 3 statuses: done, urgent, normal
   const statusOrder = ['done', 'urgent', 'normal'];
   const filteredStatus = statusData
     .filter(item => statusOrder.includes(item.status))
@@ -298,12 +286,10 @@ function CompletionCard({ data }) {
         <Text style={styles.bigDesc}>ทำสำเร็จ</Text>
       </View>
 
-      {/* Progress bar */}
       <View style={styles.completionTrack}>
         <View style={[styles.completionFill, { width: `${done}%` }]} />
       </View>
 
-      {/* Status breakdown - 3 statuses */}
       {filteredStatus && filteredStatus.length > 0 ? (
         <View style={styles.statusGrid}>
           {filteredStatus.map((item, idx) => (
@@ -316,7 +302,7 @@ function CompletionCard({ data }) {
         </View>
       ) : null}
 
-      <Text style={styles.centerSubHint}>สถิติดีที่สุดทำครบติดต่อกัน {streak_best} วัน</Text>
+      {/* <Text style={styles.centerSubHint}>สถิติดีที่สุดทำครบติดต่อกัน {streak_best} วัน</Text> */}
     </Card>
   );
 }
@@ -340,23 +326,29 @@ function LifeBalanceCard({ data }) {
       iconBg="#FFF3E0"
       iconColor={THEME.orange}>
       {pieData.length ? (
-        <View style={styles.pieWrap}>
-          <PieChart
-            data={pieData}
-            width={SCREEN_W - 56}
-            height={190}
-            chartConfig={{
-              backgroundColor: THEME.card,
-              backgroundGradientFrom: THEME.card,
-              backgroundGradientTo: THEME.card,
-              color: () => '#000000',
-              labelColor: () => '#000000',
-            }}
-            accessor="population"
-            backgroundColor="transparent"
-            paddingLeft="0"
-            absolute
-          />
+        <View style={styles.donutChartContainer}>
+          <View style={styles.pieWrap}>
+            <PieChart
+              data={pieData}
+              width={SCREEN_W - 56}
+              height={200}
+              chartConfig={{
+                backgroundColor: THEME.card,
+                backgroundGradientFrom: THEME.card,
+                backgroundGradientTo: THEME.card,
+                color: () => '#000000',
+              }}
+              accessor="population"
+              backgroundColor="transparent"
+              paddingLeft="0"
+              absolute
+              hasLegend={false}
+            />
+          </View>
+          <View style={styles.donutHole}>
+            <Text style={styles.donutHoleText}>สมดุล</Text>
+            <Text style={styles.donutHoleSubtext}>ชีวิต</Text>
+          </View>
         </View>
       ) : null}
 
@@ -392,13 +384,13 @@ function FactorsCard({ data, title, maxPerSide = 6 }) {
       iconColor="#2196F3">
       <View style={styles.twoCol}>
         <View style={styles.col}>
-          <Text style={[styles.colTitle, { color: THEME.green }]}>พลังบวก (+)</Text>
-          <ChipList items={positive} max={maxPerSide} />
+          <Text style={[styles.colTitle, { color: THEME.green }]}>พลังบวก (⭐)</Text>
+          <ChipList items={positive} max={maxPerSide} isPositive={true} />
         </View>
 
         <View style={styles.col}>
-          <Text style={[styles.colTitle, { color: THEME.red }]}>พลังลบ (-)</Text>
-          <ChipList items={negative} max={maxPerSide} />
+          <Text style={[styles.colTitle, { color: THEME.red }]}>พลังลบ (⭐)</Text>
+          <ChipList items={negative} max={maxPerSide} isPositive={false} />
         </View>
       </View>
     </Card>
@@ -439,7 +431,6 @@ function MoodDistributionCard({ data }) {
   const maxCount = Math.max(...dist.map(item => item.count), 1);
   const summary = getDominantBucketText(dist);
 
-  // Aggregate for positive/neutral/negative
   const lowCount = (dist.find(d => d.score === 1)?.count || 0) + (dist.find(d => d.score === 2)?.count || 0);
   const midCount = dist.find(d => d.score === 3)?.count || 0;
   const highCount = (dist.find(d => d.score === 4)?.count || 0) + (dist.find(d => d.score === 5)?.count || 0);
@@ -468,22 +459,20 @@ function MoodDistributionCard({ data }) {
         ))}
       </View>
 
-      {/* Positive/Neutral/Negative summary */}
       <View style={styles.summaryRow}>
         <View style={styles.summaryItem}>
-          <View style={[styles.summaryDot, { backgroundColor: THEME.green }]} />
+          <Text style={styles.moodEmojiStar}>⭐</Text>
           <Text style={styles.summaryLabel}>พลังบวก</Text>
-          <Text style={styles.summaryPct}>{pct(highCount)}%</Text>
+          <Text style={[styles.summaryPct, { color: THEME.green }]}>{pct(highCount)}%</Text>
         </View>
         <View style={styles.summaryItem}>
-          <View style={[styles.summaryDot, { backgroundColor: THEME.indigo }]} />
           <Text style={styles.summaryLabel}>กลางๆ</Text>
           <Text style={styles.summaryPct}>{pct(midCount)}%</Text>
         </View>
         <View style={styles.summaryItem}>
-          <View style={[styles.summaryDot, { backgroundColor: THEME.red }]} />
           <Text style={styles.summaryLabel}>พลังลบ</Text>
-          <Text style={styles.summaryPct}>{pct(lowCount)}%</Text>
+          <Text style={[styles.summaryPct, { color: THEME.red }]}>{pct(lowCount)}%</Text>
+          <Text style={styles.moodEmojiStar}>⭐</Text>
         </View>
       </View>
 
@@ -493,27 +482,22 @@ function MoodDistributionCard({ data }) {
   );
 }
 
-/* ---------------------- Cards: Community Activity Patterns ---------------------- */
-
 function HeatmapCard({ data }) {
   if (!data || !data.matrix || !Array.isArray(data.matrix) || data.matrix.length === 0) return null;
 
-  const days = data.days || ['จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.', 'อา.'];
+  const days = data.days || ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
   const matrix = data.matrix;
   const flat = matrix.flat().filter(v => typeof v === 'number');
   const maxVal = flat.length ? Math.max(...flat) : 1;
 
-  const cols = 24; // แสดงทุกชั่วโมง 0-23
+  const cols = 24;
   const hoursLabel = Array.from({ length: cols }, (_, i) => `${i}`);
 
-  const reduced = matrix.map(row => {
-    return row.slice(0, 24); // ใช้ข้อมูลทุกชั่วโมง 0-23
-  });
+  const reduced = matrix.map(row => row.slice(0, 24));
 
-  // Compute cell size to avoid overflow: subtract gaps and left day column
   const GAP = 2;
   const LEFT_COL = 32;
-  const CONTENT_W = SCREEN_W - 56; // card inner content width
+  const CONTENT_W = SCREEN_W - 56;
   const availableW = CONTENT_W - LEFT_COL - GAP * (cols - 1);
   const cellSize = Math.max(8, Math.floor(availableW / cols));
 
@@ -523,6 +507,22 @@ function HeatmapCard({ data }) {
       iconName="time"
       iconBg="#EEF2FF"
       iconColor="#4F46E5">
+      
+      {/* Legend ที่อธิบายกราฟได้ชัดเจน */}
+      <View style={styles.hmLegend}>
+        <Text style={styles.hmLegendLabel}>ความหนาแน่นกิจกรรม:</Text>
+        <View style={styles.hmLegendBar}>
+          <View style={[styles.hmLegendCell, { backgroundColor: 'rgba(79, 70, 229, 0.12)' }]} />
+          <View style={[styles.hmLegendCell, { backgroundColor: 'rgba(79, 70, 229, 0.30)' }]} />
+          <View style={[styles.hmLegendCell, { backgroundColor: 'rgba(79, 70, 229, 0.50)' }]} />
+          <View style={[styles.hmLegendCell, { backgroundColor: 'rgba(79, 70, 229, 0.80)' }]} />
+        </View>
+        <View style={styles.hmLegendLabels}>
+          <Text style={styles.hmLegendText}>น้อย</Text>
+          <Text style={styles.hmLegendText}>มาก</Text>
+        </View>
+      </View>
+
       <View style={styles.hmHeader}>
         <View style={{ width: 32 }} />
         {hoursLabel.map((h, idx) => (
@@ -538,7 +538,7 @@ function HeatmapCard({ data }) {
             <Text style={styles.hmDay}>{days[rIdx] || ''}</Text>
             {row.map((val, cIdx) => {
               const intensity = maxVal > 0 ? val / maxVal : 0;
-              const alpha = 0.12 + intensity * 0.54; // 0.12..0.66 (เข้มขึ้นเล็กน้อย)
+              const alpha = 0.12 + intensity * 0.68;
               return (
                 <View
                   key={`${rIdx}-${cIdx}`}
@@ -577,7 +577,7 @@ function PeakTimeCard({ data }) {
 
   return (
     <Card
-      title="ช่วงเวลายอดนิยมของกิจกรรม (ผู้ใช้ทั้งหมด)"
+      title="ช่วงเวลายอดนิยมของกิจกรรม"
       iconName="pulse"
       iconBg="#ECFDF5"
       iconColor="#059669">
@@ -593,7 +593,6 @@ function PeakTimeCard({ data }) {
           </View>
         );
       })}
-
       {data.summary ? <Text style={styles.centerHint}>{data.summary}</Text> : null}
     </Card>
   );
@@ -623,7 +622,7 @@ function CommunityCategoryMixCard({ data }) {
     backgroundColor: THEME.card,
     backgroundGradientFrom: THEME.card,
     backgroundGradientTo: THEME.card,
-    decimalPlaces: 0,
+    decimalPlaces: 0, // ซ่อนจุดทศนิยมเพื่อให้ดูคลีน
     color: (opacity = 1) => `rgba(245, 158, 11, ${opacity})`,
     labelColor: (opacity = 1) => `rgba(71, 84, 103, ${opacity})`,
     propsForBackgroundLines: { stroke: '#EEF2F6' },
@@ -654,6 +653,8 @@ function CommunityCategoryMixCard({ data }) {
 /* --------------------------------- Screen -------------------------------- */
 
 export default function TrendsScreen() {
+  console.log('🎯 [DEBUG] TrendsScreen component mounted/rendered');
+  
   const [period, setPeriod] = useState('week');
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -668,18 +669,8 @@ export default function TrendsScreen() {
     }
     const d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
     const monthNames = [
-      'มกราคม',
-      'กุมภาพันธ์',
-      'มีนาคม',
-      'เมษายน',
-      'พฤษภาคม',
-      'มิถุนายน',
-      'กรกฎาคม',
-      'สิงหาคม',
-      'กันยายน',
-      'ตุลาคม',
-      'พฤศจิกายน',
-      'ธันวาคม',
+      'มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
+      'กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม',
     ];
     return `${monthNames[d.getMonth()]} ${d.getFullYear() + 543}`;
   }, [period, offset]);
@@ -687,10 +678,17 @@ export default function TrendsScreen() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
+      console.log('📊 [DEBUG] loadData called with period:', period, 'offset:', offset);
       const result = await getDashboardSummary(period, offset);
+      console.log('📊 [DEBUG] Full Response:', result);
+      console.log('📊 [DEBUG] result.me:', result?.me);
+      console.log('📊 [DEBUG] result.me.mood:', result?.me?.mood);
+      console.log('📊 [DEBUG] result.me.completion:', result?.me?.completion);
+      console.log('📊 [DEBUG] result.me.mood.average:', result?.me?.mood?.average);
+      console.log('📊 [DEBUG] result.me.completion.overall_rate:', result?.me?.completion?.overall_rate);
       setData(result);
     } catch (error) {
-      console.log('Error fetching trends:', error);
+      console.log('❌ Error fetching trends:', error);
       setData(null);
     } finally {
       setLoading(false);
@@ -737,7 +735,6 @@ export default function TrendsScreen() {
         </View>
         <Text style={styles.emptyTitle}>ยังไม่มีข้อมูล</Text>
         <Text style={styles.emptySub}>บันทึกกิจกรรมและอารมณ์เพื่อดูสถิติ</Text>
-
         <TouchableOpacity activeOpacity={0.9} style={styles.retryBtn} onPress={loadData}>
           <Text style={styles.retryText}>ลองใหม่</Text>
         </TouchableOpacity>
@@ -766,6 +763,7 @@ export default function TrendsScreen() {
 
         <SectionTitle>ข้อมูลของผู้ใช้ทั้งหมด</SectionTitle>
         <CommunityMoodCard data={communityMood} myAverage={myMood?.average} period={period} />
+        <MoodDistributionCard data={communityDistribution} />
         <FactorsCard data={communityFactors} title="ปัจจัยอารมณ์ยอดนิยมของชุมชน" maxPerSide={5} />
 
         <View style={styles.divider} />
@@ -783,7 +781,10 @@ export default function TrendsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: THEME.bg },
-
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  loadingText: { marginTop: 12, fontSize: 14, color: THEME.subText, fontWeight: '700' },
+  
+  // Header
   header: {
     backgroundColor: THEME.card,
     paddingHorizontal: 18,
@@ -796,7 +797,6 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 26, fontWeight: '900', color: THEME.primary, marginTop: 4 },
   headerSubtitle: { fontSize: 13, color: THEME.subText, marginTop: 6, marginBottom: 12 },
-
   segmentWrap: {
     flexDirection: 'row',
     backgroundColor: '#F2F4F7',
@@ -806,247 +806,124 @@ const styles = StyleSheet.create({
     borderColor: '#EAECF0',
   },
   segmentBtn: { flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center' },
-  segmentBtnActive: {
-    backgroundColor: THEME.card,
-    borderWidth: 1,
-    borderColor: THEME.border,
-  },
+  segmentBtnActive: { backgroundColor: THEME.card, borderWidth: 1, borderColor: THEME.border },
   segmentText: { fontSize: 14, fontWeight: '800', color: '#98A2B3' },
   segmentTextActive: { color: THEME.primary },
-
-  periodNav: {
-    marginTop: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  navBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: '#F2F4F7',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: THEME.border,
-  },
+  periodNav: { marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  navBtn: { width: 38, height: 38, borderRadius: 12, backgroundColor: '#F2F4F7', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: THEME.border },
   navBtnDisabled: { opacity: 0.45 },
-  periodText: {
-    marginHorizontal: 12,
-    minWidth: 120,
-    textAlign: 'center',
-    fontSize: 14,
-    fontWeight: '900',
-    color: '#344054',
-  },
+  periodText: { marginHorizontal: 12, minWidth: 120, textAlign: 'center', fontSize: 14, fontWeight: '900', color: '#344054' },
 
+  // Content
   content: { padding: 16, paddingBottom: 40 },
-
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '900',
-    color: THEME.primary,
-    marginBottom: 12,
-    letterSpacing: 0.2,
-  },
+  sectionTitle: { fontSize: 14, fontWeight: '900', color: THEME.primary, marginBottom: 12, letterSpacing: 0.2 },
   divider: { height: 1, backgroundColor: THEME.border, marginVertical: 14 },
-
-  card: {
-    backgroundColor: THEME.card,
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: THEME.border,
-  },
-  cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  
+  // Card
+  card: { backgroundColor: THEME.card, borderRadius: 18, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: THEME.border },
+  cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   cardHeadLeft: { flexDirection: 'row', alignItems: 'center' },
-  iconBadge: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
+  iconBadge: { width: 34, height: 34, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
   cardTitle: { fontSize: 16, fontWeight: '900', color: THEME.text },
+  pill: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: '#F2F4F7', borderWidth: 1, borderColor: THEME.border, fontSize: 12, fontWeight: '900', color: '#344054' },
+  
+  bigCenterRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', marginVertical: 8 },
+  bigNumber: { fontSize: 36, fontWeight: '900', color: THEME.text },
+  bigUnit: { fontSize: 16, fontWeight: '700', color: THEME.subText, marginLeft: 4 },
+  bigDesc: { fontSize: 14, fontWeight: '700', color: THEME.subText, marginLeft: 8 },
 
-  pill: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: '#F2F4F7',
-    borderWidth: 1,
-    borderColor: THEME.border,
-    fontSize: 12,
-    fontWeight: '900',
-    color: '#344054',
-  },
-
-  metric3Row: { flexDirection: 'row', gap: 10, marginTop: 14 },
-  metricBox: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 14,
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#EAECF0',
-    alignItems: 'center',
-  },
-  metricLabel: { fontSize: 12, color: '#667085', fontWeight: '900' },
-  metricValueRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
-  metricStar: { marginRight: 4 },
-  metricValue: { fontSize: 22, fontWeight: '900', color: THEME.text },
-  metricSub: { marginTop: 2, fontSize: 12, fontWeight: '800', color: '#98A2B3' },
+  // Mood Balance
+  moodBalanceContainer: { marginTop: 8, marginBottom: 8 },
+  moodBalanceLabels: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8, paddingHorizontal: 4 },
+  moodBalanceLabelItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  moodEmojiStar: { fontSize: 12 },
+  moodBalanceLabelText: { fontSize: 12, fontWeight: '700', color: THEME.subText },
+  moodBalanceValue: { fontSize: 16, fontWeight: '900' },
+  moodBalanceBar: { flexDirection: 'row', height: 12, borderRadius: 999, overflow: 'hidden', backgroundColor: '#F9FAFB' },
+  moodBalancePositive: { height: '100%', backgroundColor: THEME.green, borderTopRightRadius: 6, borderBottomRightRadius: 6 },
+  moodBalanceNegative: { height: '100%', backgroundColor: THEME.red, borderTopLeftRadius: 6, borderBottomLeftRadius: 6 },
 
   centerHint: { textAlign: 'center', marginTop: 12, fontSize: 13, color: '#475467', fontWeight: '800' },
-  centerSubHint: { textAlign: 'center', marginTop: 6, fontSize: 12, color: THEME.subText, fontWeight: '700' },
+  centerSubHint: { textAlign: 'center', marginTop: 8, fontSize: 12, color: THEME.subText, fontWeight: '700' },
   compareHint: { textAlign: 'center', marginTop: 10, fontSize: 12, color: THEME.primary, fontWeight: '900' },
 
-  chartWrap: { marginTop: 12, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: '#EEF2F6' },
-  chart: { marginVertical: 0 },
+  // Completion / Goals
+  completionTrack: { height: 12, backgroundColor: '#F2F4F7', borderRadius: 999, overflow: 'hidden', marginVertical: 12 },
+  completionFill: { height: '100%', backgroundColor: THEME.green },
+  statusGrid: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 8 },
+  statusItem: { alignItems: 'center' },
+  statusDot: { width: 10, height: 10, borderRadius: 5, marginBottom: 4 },
+  statusLabel: { fontSize: 12, color: THEME.subText, fontWeight: '700' },
+  statusCount: { fontSize: 14, color: THEME.text, fontWeight: '900', marginTop: 2 },
 
-  bigCenterRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    marginTop: 10,
-  },
-  bigNumber: { fontSize: 46, fontWeight: '900', color: THEME.text, lineHeight: 52 },
-  bigUnit: { marginLeft: 6, marginBottom: 10, fontSize: 14, fontWeight: '900', color: '#98A2B3' },
-  bigDesc: { marginLeft: 8, marginBottom: 10, fontSize: 14, fontWeight: '900', color: '#667085' },
-
-  pieWrap: { marginTop: 6, borderRadius: 14, overflow: 'hidden' },
-
-  balanceRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10 },
-  balanceEmoji: { fontSize: 18, width: 30 },
+  // Donut Chart
+  donutChartContainer: { position: 'relative', alignItems: 'center', justifyContent: 'center', height: 200 },
+  pieWrap: { alignItems: 'center', justifyContent: 'center' },
+  donutHole: { position: 'absolute', width: 80, height: 80, borderRadius: 40, backgroundColor: THEME.card, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
+  donutHoleText: { fontSize: 14, fontWeight: '900', color: THEME.text },
+  donutHoleSubtext: { fontSize: 12, fontWeight: '700', color: THEME.subText },
+  
+  balanceRow: { flexDirection: 'row', alignItems: 'center', marginTop: 16, paddingHorizontal: 8 },
+  balanceEmoji: { fontSize: 24, marginRight: 12 },
   balanceTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  balanceLabel: { fontSize: 13, fontWeight: '800', color: '#344054' },
-  balancePct: { fontSize: 13, fontWeight: '900', color: '#475467' },
-  balanceTrack: { height: 8, backgroundColor: '#EEF2F6', borderRadius: 6, overflow: 'hidden' },
-  balanceFill: { height: '100%', borderRadius: 6 },
+  balanceLabel: { fontSize: 14, fontWeight: '800', color: THEME.text },
+  balancePct: { fontSize: 14, fontWeight: '900', color: THEME.subText },
+  balanceTrack: { height: 8, backgroundColor: '#F2F4F7', borderRadius: 4, overflow: 'hidden' },
+  balanceFill: { height: '100%', borderRadius: 4 },
 
-  // Completion card
-  completionTrack: { 
-    height: 12, 
-    backgroundColor: '#EEF2F6', 
-    borderRadius: 8, 
-    overflow: 'hidden',
-    marginTop: 16,
-    marginBottom: 16,
-  },
-  completionFill: { 
-    height: '100%', 
-    backgroundColor: THEME.green, 
-    borderRadius: 8,
-  },
-  statusGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: 12,
-    paddingHorizontal: 8,
-  },
-  statusItem: {
-    alignItems: 'center',
-  },
-  statusDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginBottom: 6,
-  },
-  statusLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: THEME.subText,
-    marginBottom: 4,
-  },
-  statusCount: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: THEME.text,
-  },
-
-  twoCol: { flexDirection: 'row', gap: 12, marginTop: 12 },
+  // Factors (Chips)
+  twoCol: { flexDirection: 'row', gap: 16, marginTop: 8 },
   col: { flex: 1 },
-  colTitle: { fontSize: 12, fontWeight: '900', marginBottom: 10 },
+  colTitle: { fontSize: 13, fontWeight: '900', marginBottom: 12, textAlign: 'center' },
+  chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
+  chip: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 20, borderWidth: 1 },
+  chipEmoji: { fontSize: 12, marginRight: 4 },
+  chipLabel: { fontSize: 12, fontWeight: '800', marginRight: 6 },
+  chipBadge: { backgroundColor: 'rgba(0,0,0,0.06)', borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2 },
+  chipBadgeText: { fontSize: 10, fontWeight: '900', color: THEME.text },
+  noDataText: { fontSize: 12, color: THEME.subText, textAlign: 'center', fontStyle: 'italic', marginTop: 10 },
 
-  chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  chipContainer: {
-    alignItems: 'center',
-    gap: 4,
-  },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 999,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: THEME.border,
-    gap: 8,
-  },
-  chipLabel: { fontSize: 13, fontWeight: '900', color: '#344054' },
-  chipCount: { fontSize: 12, fontWeight: '900', color: '#667085' },
-  chipCaption: { fontSize: 11, fontWeight: '600', color: THEME.subText, textAlign: 'center', maxWidth: 70 },
-  noDataText: { fontSize: 12, color: '#98A2B3', fontStyle: 'italic' },
+  // Distribution
+  distWrap: { marginTop: 8 },
+  distRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  distLabel: { width: 24, fontSize: 14, fontWeight: '900', color: THEME.text },
+  distTrack: { flex: 1, height: 10, backgroundColor: '#F2F4F7', borderRadius: 5, overflow: 'hidden', marginHorizontal: 8 },
+  distFill: { height: '100%', backgroundColor: THEME.purple, borderRadius: 5 },
+  distValue: { width: 30, textAlign: 'right', fontSize: 13, fontWeight: '800', color: THEME.subText },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: THEME.border },
+  summaryItem: { alignItems: 'center', flexDirection: 'row', gap: 6 },
+  summaryLabel: { fontSize: 12, fontWeight: '800', color: THEME.subText },
+  summaryPct: { fontSize: 14, fontWeight: '900' },
 
-  distWrap: { marginTop: 12 },
-  distRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  distLabel: { width: 26, fontSize: 12, fontWeight: '900', color: '#344054' },
-  distTrack: { flex: 1, height: 8, backgroundColor: '#EEF2F6', borderRadius: 6, overflow: 'hidden' },
-  distFill: { height: '100%', backgroundColor: THEME.purple, borderRadius: 6 },
-  distValue: { width: 34, textAlign: 'right', fontSize: 12, fontWeight: '900', color: '#667085' },
+  // Heatmap
+  hmLegend: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 16, backgroundColor: '#F9FAFB', padding: 8, borderRadius: 8 },
+  hmLegendLabel: { fontSize: 11, fontWeight: '800', color: THEME.subText, marginRight: 8 },
+  hmLegendBar: { flexDirection: 'row', borderRadius: 4, overflow: 'hidden', marginRight: 8 },
+  hmLegendCell: { width: 16, height: 12 },
+  hmLegendLabels: { flexDirection: 'row', gap: 40 },
+  hmLegendText: { fontSize: 10, fontWeight: '700', color: THEME.subText },
+  hmHeader: { flexDirection: 'row', marginBottom: 4 },
+  hmHour: { fontSize: 9, color: '#98A2B3', textAlign: 'center' },
+  hmBody: { marginBottom: 8 },
+  hmRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 2 },
+  hmDay: { width: 32, fontSize: 10, fontWeight: '800', color: '#475467' },
+  hmCell: { borderRadius: 2 },
 
-  // Summary chips for positive/neutral/negative
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 12, marginBottom: 6 },
-  summaryItem: { alignItems: 'center' },
-  summaryDot: { width: 12, height: 12, borderRadius: 6, marginBottom: 6 },
-  summaryLabel: { fontSize: 11, fontWeight: '800', color: '#344054', marginBottom: 2 },
-  summaryPct: { fontSize: 14, fontWeight: '900', color: '#1F2937' },
+  // Peak Time
+  peakRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  peakLabel: { width: 60, fontSize: 13, fontWeight: '800', color: THEME.text },
+  peakTrack: { flex: 1, height: 10, backgroundColor: '#ECFDF5', borderRadius: 5, overflow: 'hidden', marginHorizontal: 12 },
+  peakFill: { height: '100%', backgroundColor: THEME.green, borderRadius: 5 },
+  peakValue: { width: 36, textAlign: 'right', fontSize: 13, fontWeight: '900', color: THEME.text },
 
-  hmHeader: { flexDirection: 'row', alignItems: 'center', marginTop: 10, marginBottom: 4 },
-  hmHour: { textAlign: 'center', fontSize: 8, fontWeight: '800', color: '#667085' },
-  hmBody: { marginTop: 2 },
-  hmRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-  hmDay: { width: 32, fontSize: 11, fontWeight: '800', color: '#344054' },
-  hmCell: { borderRadius: 4, borderWidth: 0.5, borderColor: 'rgba(79,70,229,0.08)' },
+  // Chart
+  chartWrap: { marginTop: 12, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: '#EEF2F6', alignItems: 'center', paddingRight: 16 },
+  chart: { marginVertical: 8, borderRadius: 14 },
 
-  peakRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10 },
-  peakLabel: { width: 70, fontSize: 13, fontWeight: '900', color: '#344054' },
-  peakTrack: {
-    flex: 1,
-    height: 10,
-    backgroundColor: '#EEF2FF',
-    borderRadius: 999,
-    overflow: 'hidden',
-    marginHorizontal: 10,
-  },
-  peakFill: { height: '100%', backgroundColor: '#4F46E5' },
-  peakValue: { width: 44, textAlign: 'right', fontSize: 12, fontWeight: '900', color: '#344054' },
-
-  center: { flex: 1, backgroundColor: THEME.bg, alignItems: 'center', justifyContent: 'center' },
-  loadingText: { marginTop: 14, fontSize: 14, fontWeight: '800', color: THEME.subText },
-
-  emptyIcon: {
-    width: 88,
-    height: 88,
-    borderRadius: 26,
-    backgroundColor: '#E0F7FA',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 18,
-  },
-  emptyTitle: { fontSize: 18, fontWeight: '900', color: THEME.text },
-  emptySub: { marginTop: 6, fontSize: 13, fontWeight: '700', color: THEME.subText, marginBottom: 16 },
-
-  retryBtn: {
-    backgroundColor: THEME.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 14,
-  },
-  retryText: { color: '#fff', fontSize: 14, fontWeight: '900' },
+  // Empty State
+  emptyIcon: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#E0F7FA', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
+  emptyTitle: { fontSize: 20, fontWeight: '900', color: THEME.text, marginBottom: 8 },
+  emptySub: { fontSize: 14, color: THEME.subText, textAlign: 'center', marginBottom: 24 },
+  retryBtn: { paddingHorizontal: 24, paddingVertical: 12, backgroundColor: THEME.primary, borderRadius: 999 },
+  retryText: { color: '#FFF', fontSize: 14, fontWeight: '800' },
 });

@@ -233,6 +233,9 @@ def calculate_completion_stats(period: str, offset: int, db: Session, user_id=No
 
     for activity in activities:
         status = (activity.status or "normal")
+        # แปลง "in_progress" ให้เป็น "urgent" เพื่อรวมเข้ากลุ่มเดียวกัน
+        if status == "in_progress":
+            status = "urgent"
         if status in status_count:
             status_count[status] += 1
         else:
@@ -781,12 +784,14 @@ def get_activity_heatmap(period: Literal['week', 'month'], offset: int, db: Sess
                 except Exception:
                     continue
             weekday = act.date.weekday()  # 0 = Monday ... 6 = Sunday
-            if 0 <= weekday <= 6 and 0 <= hour <= 23:
-                matrix[weekday][hour] += 1
+            # Convert to start-on-Sunday: 0 = Sunday, 1 = Monday, ... 6 = Saturday
+            weekday_adjusted = (weekday + 1) % 7
+            if 0 <= weekday_adjusted <= 6 and 0 <= hour <= 23:
+                matrix[weekday_adjusted][hour] += 1
         except Exception:
             continue
 
-    days_th = ['จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.', 'อา.']
+    days_th = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.']
     return {
         "days": days_th,
         "hours": list(range(24)),

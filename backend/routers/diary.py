@@ -46,7 +46,13 @@ def list_diaries(
         query = query.filter(Diary.date >= start_date)
     if end_date:
         query = query.filter(Diary.date <= end_date)
-    return query.order_by(Diary.date.desc(), Diary.time.desc()).all()
+    rows = query.order_by(Diary.date.desc(), Diary.time.desc()).all()
+    for row in rows:
+        try:
+            row.image_count = len(_list_image_files(_diary_image_dir(row.id)))
+        except Exception:
+            row.image_count = 0
+    return rows
 
 @router.post("", response_model=DiaryResponse, status_code=201)
 def create_diary(payload: DiaryCreate, db: Session = Depends(get_db), me: User = Depends(current_user)):
@@ -113,6 +119,10 @@ def get_diary(diary_id: str, db: Session = Depends(get_db), me: User = Depends(c
     row = db.query(Diary).filter(Diary.id == diary_id, Diary.user_id == me.id).first()
     if not row:
         raise HTTPException(status_code=404, detail="ไม่พบรายการ")
+    try:
+        row.image_count = len(_list_image_files(_diary_image_dir(row.id)))
+    except Exception:
+        row.image_count = 0
     return row
 
 @router.put("/{diary_id}", response_model=DiaryResponse)
@@ -161,7 +171,7 @@ def update_diary(diary_id: str, payload: DiaryUpdate, db: Session = Depends(get_
         row.title = update_data.get('title')
     if 'detail' in update_data:
         row.detail = update_data.get('detail')
-    if 'mood' in update_data:
+    if 'mood' in update_data and update_data.get('mood') is not None:
         row.mood = update_data.get('mood')
     if 'tags' in update_data:
         row.tags = update_data.get('tags')

@@ -17,7 +17,7 @@ routine_activity.py - Model สำหรับตาราง routine_activities
 """
 
 import uuid
-from sqlalchemy import Column, String, Time, ForeignKey
+from sqlalchemy import Column, String, Time, ForeignKey, Boolean
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from db.session import Base
 
@@ -48,3 +48,15 @@ class RoutineActivity(Base):
     # Subtasks: งานย่อยของแม่แบบ (จะถูกคัดลอกไปยัง Activity)
     # เช่น [{"id": "uuid", "text": "งานย่อย 1", "completed": false}]
     subtasks = Column(JSONB, nullable=True)
+    
+    # Priority: "low" (ไม่เร่ง), "medium" (ปกติ), "high" (ด่วน)
+    priority = Column(String(20), nullable=True, default="medium")
+    
+    # Reminder: นาทีที่ต้องแจ้งเตือนก่อนกิจกรรม (0 = ไม่มีการแจ้งเตือน)
+    reminder_minutes = Column(String(100), nullable=True, default="15")
+
+    # Reminder sound: เปิด/ปิดเสียงแจ้งเตือน
+    remind_sound = Column(Boolean, nullable=True, default=True)
+
+    # Local Notification ID (ใช้สำหรับยกเลิก/อัปเดตการเตือนรายสัปดาห์)
+    notification_id = Column(String(255), nullable=True)

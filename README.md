@@ -1,91 +1,551 @@
-# Planary
+# Planary - คูมือการติดตั้งอย่างละเอียด
 
-## Clone / Setup / Run (สำหรับ Demo)
+ระบบจัดการกิจกรรมและบันทึกประจำวัน (React Native + FastAPI) ที่รองรับการสร้างกิจกรรมอัตโนมัติจากแม่แบบประจำวัน
 
-ทำตามขั้นตอนนี้เพื่อให้ผู้ประเมินสามารถ clone และ run ระบบได้จริงบน Windows (ใช้ Postgres + Python + Expo):
+## ข้อกำหนดเบื้องต้น (Prerequisites)
 
-### 1) Clone โค้ด
+ก่อนเริ่มติดตั้ง ให้เตรียมข้อมูลต่อไปนี้:
 
-```bash
-git clone https://github.com/belseris/Planary.git
-cd Planary
-```
+- **Python 3.11 ขึ้นไป** - ดาวน์โหลดจาก https://www.python.org/
+- **Node.js v14+** (พร้อม npm) - ดาวน์โหลดจาก https://nodejs.org/
+- **Git** - ดาวน์โหลดจาก https://git-scm.com/
+- **PostgreSQL 12+** - ดาวน์โหลดจาก https://www.postgresql.org/
+- **Expo Go** (บนมือถือ iOS/Android) - ดาวน์โหลดจาก App Store หรือ Google Play
 
-### 2) ตั้งค่า Database (PostgreSQL)
+### ตรวจสอบการติดตั้ง
 
-ต้องมี PostgreSQL 
-
-สร้างฐานข้อมูลว่างชื่อ `planary`
-
-บันทึก host/port ของ Postgres (โดยปกติ `localhost:5432`).
-
-### 3) ตั้งค่า Backend
+เปิด PowerShell หรือ Command Prompt แล้วรันคำสั่งต่อไปนี้:
 
 ```powershell
-cd backend
+# ตรวจสอบ Python
+python --version
+
+# ตรวจสอบ Node.js
+node --version
+npm --version
+
+# ตรวจสอบ Git
+git --version
+```
+
+หากคำสั่งไหนไม่ทำงาน ให้ติดตั้งซอฟต์แวร์นั้นใหม่
+
+---
+
+## ขั้นตอนที่ 1: Clone Repository จาก GitHub
+
+เปิด PowerShell แล้วรันคำสั่งต่อไปนี้:
+
+```powershell
+# ไปที่โฟลเดอร์ที่ต้องการเก็บโปรเจคต์
+cd D:\Project\Planary3\Planary
+
+# Clone โปรเจคต์
+git clone https://github.com/belseris/Planary.git
+cd Planary
+
+# ตรวจสอบโครงสร้าง
+dir
+```
+
+คุณควรเห็นโฟลเดอร์: `backend`, `frontend`, `migrations`, `media` เป็นต้น
+
+---
+
+## ขั้นตอนที่ 2: ตั้งค่า PostgreSQL Database
+
+### 2.1 ติดตั้ง PostgreSQL
+
+1. ดาวน์โหลดและรัน PostgreSQL installer จาก https://www.postgresql.org/download/windows/
+2. ขณะติดตั้ง **จำบันทึก password ของ superuser (postgres)** ไว้
+3. เก็บ port (โดยปกติคือ 5432)
+
+### 2.2 ติดตั้ง pgAdmin (บริหารจัดการ Database)
+
+pgAdmin เป็นเครื่องมือ GUI ที่ช่วยให้มองเห็นและจัดการฐานข้อมูล PostgreSQL ได้ง่ายขึ้น
+
+**วิธีติดตั้ง pgAdmin:**
+
+1. ดาวน์โหลด pgAdmin จาก https://www.pgadmin.org/download/pgadmin-4-windows/
+2. รัน installer และติดตั้งตามปกติ
+3. ฟังก์ชันเพิ่มเติมคำถามว่า "Use Server Mode" - เลือก **Yes**
+4. ระบบจะถามให้ตั้ง email และ password - ให้ตั้งค่าที่จำได้
+5. เสร็จแล้ว pgAdmin จะเปิดที่ `http://localhost:5050` โดยอัตโนมัติ
+
+### 2.3 สร้างฐานข้อมูล (ใช้ pgAdmin)
+
+**วิธีที่ 1: ใช้ pgAdmin GUI (แนะนำสำหรับมือใหม่)**
+
+1. เปิด pgAdmin ที่ `http://localhost:5050`
+2. ล็อกอิน ด้วย email และ password ที่ตั้งไว้
+3. ที่ด้านซ้าย ไปที่ **Browser Panel > Servers**
+
+   **ถ้ายังไม่เห็น PostgreSQL Server:**
+   - คลิกขวา **Servers** > **Register** > **Server**
+   - ตั้งชื่อ: `PostgreSQL Local`
+   - ไปที่ Tab **Connection**
+   - Host: `localhost`
+   - Port: `5432`
+   - Username: `postgres`
+   - Password: `(password ที่ตั้งขณะติดตั้ง)`
+   - กด **Save**
+
+4. เมื่ออยู่ในหน้า **Servers > PostgreSQL** แล้ว:
+   - คลิกขวา **Databases** > **Create** > **Database**
+   - ตั้งชื่อ: `planary`
+   - Owner: `postgres`
+   - กด **Save**
+
+5. ตรวจสอบ - ในรายการ Databases ควรเห็น `planary` ปรากฏขึ้น ✓
+
+**ดูข้อมูลในตาราง:**
+1. ขยาย **Databases > planary > Schemas > public > Tables**
+2. จะเห็นตาราง: `users`, `activities`, `diaries`, `routine_activities` เป็นต้น
+
+### 2.4 สร้างฐานข้อมูล (ใช้ Command Line)
+
+หากต้องการใช้ Command Line แทน:
+
+```powershell
+# เข้า PostgreSQL command line
+psql -U postgres
+
+# ตอนให้ใส่ password ให้พิมพ์ password ที่ตั้งขณะติดตั้ง
+
+# สร้างฐานข้อมูล
+CREATE DATABASE planary;
+
+# ออกจาก PostgreSQL
+\q
+```
+
+### 2.5 ตรวจสอบการเชื่อมต่อ
+
+```powershell
+# ตรวจสอบว่าฐานข้อมูลถูกสร้างแล้ว
+psql -U postgres -l | findstr planary
+```
+
+หากเห็น `planary` ในรายการแสดงว่าสำเร็จ
+
+---
+
+## ขั้นตอนที่ 3: ตั้งค่า Backend (FastAPI)
+
+### 3.1 สร้าง Virtual Environment
+
+```powershell
+cd Planary\backend
+
+# สร้าง virtual environment
 python -m venv .venv
+
+# เปิดใช้งาน virtual environment
 .\.venv\Scripts\activate
 
-# ติดตั้ง dependencies ตาม pyproject.toml
-python -m pip install -U pip setuptools wheel;
-python -m pip install "uvicorn[standard]" "fastapi[all]" sqlalchemy pydantic-settings psycopg2-binary "passlib[bcrypt]";
-python -m pip uninstall -y jose;
-python -m pip install "python-jose[cryptography]";
-python -m pip uninstall -y bcrypt;
+# ตรวจสอบว่า venv ทำงาน (ควรเห็น (.venv) ที่หน้า prompt)
+```
+
+### 3.2 อัปเกรด pip และติดตั้ง Dependencies
+
+```powershell
+# อัปเกรด pip, setuptools, wheel
+python -m pip install -U pip setuptools wheel
+
+# ติดตั้ง FastAPI และ dependencies หลัก
+python -m pip install "uvicorn[standard]" "fastapi[all]" sqlalchemy pydantic-settings psycopg2-binary "passlib[bcrypt]"
+
+# ลบ jose เก่า และติดตั้งใหม่
+python -m pip uninstall -y jose
+python -m pip install "python-jose[cryptography]"
+
+# ลบ bcrypt เก่า และติดตั้งเวอร์ชันที่เข้ากัน
+python -m pip uninstall -y bcrypt
 python -m pip install "bcrypt>=4.1.3,<5"
+```
 
+**(ทางเลือก) สร้างไฟล์ requirements.txt ใน backend**
 
-# สร้างไฟล์ .env (ปรับค่าให้ตรงกับเครื่องคุณ)
-New-Item -ItemType File -Path .env -Force
-"DATABASE_URL=postgresql+psycopg2://planary_user:planary_pass@localhost:5432/planary`nSECRET_KEY=demo-secret-key`nACCESS_TOKEN_EXPIRE_MINUTES=120" | Set-Content .env
+ถ้าต้องการให้ติดตั้ง dependencies แบบไฟล์เดียว สามารถสร้างไฟล์ `backend/requirements.txt` ได้ด้วยคำสั่งนี้:
 
-# รันเซิร์ฟเวอร์ FastAPI (0.0.0.0:8000)
+```powershell
+# สร้าง/เขียนไฟล์ requirements.txt ตาม pyproject.toml
+@"
+uvicorn[standard]
+fastapi[all]
+sqlalchemy
+pydantic-settings
+psycopg2-binary
+passlib[bcrypt]
+python-jose[cryptography]
+bcrypt>=4.1.3,<5
+"@ | Set-Content .\requirements.txt
+
+# ติดตั้งจาก requirements.txt
+python -m pip install -r requirements.txt
+
+# รัน backend หลังติดตั้งเสร็จ
 python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-ทดสอบว่า backend ทำงาน:
+### 3.3 สร้างไฟล์ .env
 
-```bash
+สร้างไฟล์ `.env` ในโฟลเดอร์ `backend/` เพื่อเก็บข้อมูล configuration:
+
+```powershell
+# สร้างไฟล์ .env
+New-Item -ItemType File -Path .env -Force
+
+# เขียนค่า configuration ลงในไฟล์
+@"
+DATABASE_URL=postgresql+psycopg2://postgres:your_postgres_password@localhost:5432/planary
+SECRET_KEY=your-secret-key-change-this-in-production-12345
+ACCESS_TOKEN_EXPIRE_MINUTES=120
+"@ | Set-Content .env
+```
+
+**⚠️ สำคัญ:** แทนที่ค่าต่อไปนี้:
+- `your_postgres_password` - ด้วย password ของ PostgreSQL superuser ที่ตั้งไว้ขณะติดตั้ง
+- `your-secret-key...` - สามารถใช้ค่านี้ได้เลย หรือสร้างใหม่โดยรัน Python:
+
+```python
+import secrets
+print(secrets.token_urlsafe(32))
+```
+
+### 3.4 รัน Backend Server
+
+```powershell
+# เมื่อยังอยู่ใน backend/ และ venv ยังเปิดอยู่
+python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+บนจอ terminal ควรเห็นข้อความ:
+```
+Uvicorn running on http://0.0.0.0:8000
+Application startup complete
+```
+
+### 3.5 ทดสอบ Backend
+
+**ทดสอบในเครื่องเดียวกัน:**
+
+```powershell
+# เปิด PowerShell/Command Prompt ใหม่
 curl http://127.0.0.1:8000/ping
+# ควรเห็น response (ถ้าไม่มี /ping endpoint ให้ตรวจ main.py)
 ```
 
-ถ้าต้องให้มือถือหรืออุปกรณ์ใน LAN เข้าถึง ให้ใช้ IP เครื่อง (เช่น `http://192.168.x.x:8000/ping`).
-บน Windows สามารถเปิด firewall ชั่วคราวด้วยสคริปต์ (รัน PowerShell แบบ Administrator):
+**ทดสอบจากเครื่องอื่นในเครือข่าย:**
+
+1. ค้นหา IP Address ของเครื่องที่รัน Backend:
+   ```powershell
+   ipconfig | findstr "IPv4"
+   ```
+   ตัวอย่าง: `192.168.1.100`
+
+2. จากเครื่องอื่น ให้เปิด browser แล้วไปที่:
+   ```
+   http://192.168.1.100:8000/docs
+   ```
+   ควรเห็น Swagger UI
+
+**หากต้องให้มือถือ/อุปกรณ์ใน LAN เข้าถึง (เปิด Firewall):**
 
 ```powershell
+# รัน PowerShell ด้วยสิทธิ Administrator
+# ไปที่โฟลเดอร์ backend
 cd backend
-./allow_firewall.ps1 -Action Add   # เปิด
-# ./allow_firewall.ps1 -Action Remove  # ปิดเมื่อทดสอบเสร็จ
+
+# รันสคริปต์ (ถ้ามี)
+.\allow_firewall.ps1 -Action Add
+
+# เมื่อทดสอบเสร็จ สามารถปิดได้
+# .\allow_firewall.ps1 -Action Remove
 ```
 
-### 4) ตั้งค่า Frontend (Expo)
+---
+
+## ขั้นตอนที่ 4: ตั้งค่า Frontend (React Native + Expo)
+
+### 4.1 ปรับ API Configuration
+
+ไฟล์ `frontend/src/api/client.js` ต้องชี้ไปที่ Backend ที่รันอยู่
+
+1. เปิดไฟล์ `Planary/frontend/src/api/client.js`
+2. หาบรรทัด `DEFAULT_LAN_IP` หรือ `BASE_URL`
+3. แก้ไขให้ตรงกับ IP ของเครื่องที่รัน Backend:
+
+```javascript
+// ตัวอย่าง: ถ้า Backend รันบนเครื่อง 192.168.1.100
+const DEFAULT_LAN_IP = '192.168.1.100';  // แก้ IP นี้
+export const BASE_URL = `http://${DEFAULT_LAN_IP}:8000`;
+```
+
+**วิธีหา IP ของเครื่อง Backend:**
+```powershell
+ipconfig | findstr "IPv4"
+```
+(ใช้ IPv4 Address ของ Ethernet หรือ Wi-Fi)
+
+### 4.2 ติดตั้ง Node Modules
 
 ```powershell
-cd frontend
+# ไปที่โฟลเดอร์ frontend
+cd Planary\frontend
+
+# ติดตั้ง Node packages
+npm install
+
+# ตรวจสอบว่าติดตั้งสำเร็จ
+npm list expo
+```
+
+### 4.3 รัน Expo
+
+```powershell
+# ยังอยู่ในโฟลเดอร์ frontend
+npx expo start
+
+# หรือถ้าเคย install expo global ให้รัน
+expo start
+```
+
+ควรเห็นข้อความ:
+```
+Starting Expo server...
+Tunnel ready
+Expo Go: scan the QR code to launch your app
+```
+
+### 4.4 เปิดแอปบนมือถือ
+
+1. ตรวจสอบว่า **มือถือและเครื่อง dev อยู่ Wi-Fi เดียวกัน**
+2. ดาวน์โหลดและเปิด **Expo Go** บนมือถือ
+3. สแกน **QR Code** ที่ปรากฏใน terminal หรือบน browser
+
+แอปจะ build และเปิดบนมือถือโดยอัตโนมัติ
+
+---
+
+## ขั้นตอนที่ 5: ตรวจสอบการทำงาน
+
+### 5.1 ทดสอบ API (Backend)
+
+เปิด browser ไปที่ Swagger UI:
+
+```
+http://localhost:8000/docs
+```
+หรือใช้ IP ของเครื่อง:
+```
+http://192.168.1.100:8000/docs
+```
+
+ควรเห็น API documentation พร้อมปุ่ม "Try it out" ด้วย
+
+### 5.2 ทดสอบแอป (Frontend)
+
+หลังจากแอปเปิดบนมือถือ ให้ลอง:
+
+1. **Register** - สมัครสมาชิกชุด test
+   - Username: `testuser`
+   - Email: `test@example.com`
+   - Password: `Test123!`
+
+2. **Login** - ล็อกอิน ด้วยชุดที่สมัครเก้า
+
+3. **Activities** - ตรวจสอบหน้าแสดงกิจกรรม (ควรเห็นปฏิทิน)
+
+4. **Create Activity** - เพิ่มกิจกรรมใหม่แล้วบันทึก
+
+5. **Diary** - สร้างบันทึกประจำวัน
+
+6. **Trends** - ดูแนวโน้มและสถิติ
+
+7. **Profile** - ดูข้อมูลโปรไฟล์
+
+---
+
+## การแก้ไขปัญหาทั่วไป (Troubleshooting)
+
+### ปัญหา: PostgreSQL ไม่ทำงาน
+
+**อาการ:** Backend ขึ้นข้อความ error เกี่ยวกับ database connection
+
+**แก้ไข:**
+```powershell
+# ตรวจสอบว่า PostgreSQL service ทำงาน
+Get-Service PostgreSQL* | Where-Object {$_.Status -eq "Running"}
+
+# ถ้าไม่ทำงาน ให้เริ่มต้น
+Start-Service PostgreSQL-x64-15  # หรือเวอร์ชันของคุณ
+
+# ตรวจสอบว่าฐานข้อมูล planary มี
+psql -U postgres -l | findstr planary
+```
+
+### ปัญหา: Backend ไม่ติดตั้ง Dependencies สำเร็จ
+
+**อาการ:** ModuleNotFoundError หรือ ImportError
+
+**แก้ไข:**
+```powershell
+# ตรวจสอบ pip
+python -m pip --version
+
+# ลบ venv เก่า
+rmdir /s /q .venv
+
+# สร้าง venv ใหม่
+python -m venv .venv
+.\.venv\Scripts\activate
+
+# ติดตั้ง dependencies ใหม่ (ทำตามขั้นตอนที่ 3.2)
+```
+
+### ปัญหา: Frontend แอปขึ้น "Network Error"
+
+**อาการ:** แอปไม่สามารถเชื่อมต่อ Backend
+
+**แก้ไข:**
+1. ตรวจสอบ IP Address ใน `frontend/src/api/client.js`
+2. ตรวจสอบว่ามือถือและเครื่อง dev อยู่ Wi-Fi เดียวกัน
+3. ตรวจสอบ Firewall - อนุญาตให้ port 8000 ผ่าน
+
+```powershell
+# เปิด PowerShell เป็น Administrator
+cd backend
+.\allow_firewall.ps1 -Action Add
+```
+
+### ปัญหา: Expo QR Code ไม่สแกนได้
+
+**แก้ไข:**
+1. ตรวจสอบ Expo ยังรันอยู่บน terminal
+2. ลองปิด Expo (Ctrl+C) แล้ว รัน `npx expo start` ใหม่
+3. ตรวจสอบว่ากล้องมือถือทำงาน
+
+### ปัญหา: API ส่ง 401 Unauthorized
+
+**อาการ:** หลังจาก login ยังคงได้ 401 error
+
+**แก้ไข:**
+1. ลบ token ที่เก็บไว้:
+   ```
+   ในแอป: Profile > Logout
+   ```
+2. ลอง Register และ Login ใหม่
+3. ตรวจสอบ SECRET_KEY ใน `.env` ตรงกับที่โปรแกรม backend ใช้
+
+### ปัญหา: npm install ใช้เวลานาน
+
+**แก้ไข:**
+```powershell
+# รัน npm install ด้วย verbose flag
+npm install --verbose
+
+# ถ้ายังช้า ลองเปลี่ยน npm registry
+npm config set registry https://registry.npmjs.org/
+npm cache clean --force
 npm install
 ```
 
-แก้ค่า BASE_URL ใน `frontend/src/api/client.js` ให้ตรงกับ IP backend:
+---
 
+## คำสั่งที่มีประโยชน์
 
-เริ่มต้น Expo:
+```powershell
+# Backend - รัน development server
+cd backend
+.\.venv\Scripts\activate
+python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
-```bash
+# Frontend - รัน Expo
+cd frontend
 npx expo start
+
+# ตรวจสอบการใช้ port 8000
+netstat -ano | findstr :8000
+
+# ดู PostgreSQL status
+Get-Service PostgreSQL* | Select-Object Name, Status
+
+# ล้าง npm cache
+npm cache clean --force
 ```
 
-เปิดแอป Expo Go บนมือถือ (อยู่ Wi‑Fi เดียวกัน) แล้วสแกน QR เพื่อเปิดแอป
+---
 
-### 5) ตรวจสอบการทำงาน
+## ขั้นตอนการปรับแต่ง (เพิ่มเติม)
 
-- เปิด Swagger: `http://<IP>:8000/docs` เพื่อลองเรียก API
-- ในแอป มือถือ: ลอง Register/Login จากหน้า `Login` และตรวจ `Activities`, `Diary`, `Trends`, `Profile`
+### เปลี่ยน Routine Activities
 
-### 6) หมายเหตุสำคัญสำหรับผู้ประเมิน
+1. เปิดแอป และ Login
+2. ไปที่ **Activities** > ปุ่ม "+"
+3. สร้างกิจกรรมใหม่ กำหนดประเภท, เวลา, สถานะ
+4. หากต้องให้เป็น Routine ให้ใช้เมนู **Edit Routine**
 
-- ระบบต้องใช้ PostgreSQL จริง เนื่องจากมีฟิลด์ชนิด `JSONB` ในหลายตาราง
-- ถ้า API ขึ้น 401 ให้ logout แล้ว login ใหม่ (token หมดอายุหรือไม่ถูกต้อง)
-- ถ้าแอปขึ้น `Network Error` ให้ตรวจ IP/Firewall และว่าอยู่เครือข่ายเดียวกัน
+### เปิด Database ด้วย pgAdmin
+
+```powershell
+# เปิด pgAdmin จาก browser
+http://localhost:5050
+
+# Login ด้วย superuser account
+# ไปที่ Servers > PostgreSQL > Databases > planary
+# ตรวจสอบตาราง: users, activities, diaries, routine_activities
+```
+
+### ดูข้อมูลที่บันทึก
+
+```powershell
+# เชื่อมต่อฐานข้อมูล
+psql -U postgres -d planary
+
+# ดูรายการตาราง
+\dt
+
+# ดูผู้ใช้ทั้งหมด
+SELECT * FROM users;
+
+# ออก
+\q
+```
+
+---
+
+## ข้อมูลการตั้งค่ามาตรฐาน
+
+| Components | ค่า | หมายเหตุ |
+|----------|---------|---------|
+| **Backend Host** | 0.0.0.0 | Accept จากทุกเครื่อง |
+| **Backend Port** | 8000 | FastAPI default |
+| **DB Host** | localhost | SQL Server ในหาก |
+| **DB Port** | 5432 | PostgreSQL default |
+| **DB Name** | planary | ฐานข้อมูลหลัก |
+| **Token Expiry** | 120 min | 2 ชั่วโมง |
+| **Expo** | LAN | ต้องอยู่ Wi-Fi เดียวกัน |
+
+---
+
+## หมายเหตุสำคัญ
+
+- ⚠️ **ระบบต้องใช้ PostgreSQL จริง** เพราะมีฟิลด์ `JSONB` หลายตาราง
+- ⚠️ **IP Address ต้องตรงกันเพื่อให้มือถือเชื่อมต่อ Backend**
+- ⚠️ **Token JWT หมดอายุทุก 2 ชั่วโมง** - ถ้าได้ 401 ให้ Logout และ Login ใหม่
+- 📱 **Expo Go ต้องอยู่ Wi-Fi เดียวกับเครื่อง dev** เพื่อให้สแกน QR ได้
+- 🔒 **เปลี่ยน SECRET_KEY ในการ deploy ไปโปรดักชัน** ด้วยค่าที่ปลอดภัยและสุ่ม
+
+---
+
+## ติดต่อและสนับสนุน
+
+หากพบปัญหา:
+1. ตรวจสอบ error message ใน terminal
+2. ดู Firewall settings
+3. ตรวจสอบ IP/Port settings
+4. ลองรีสตาร์ท backend และ frontend
 
 ## ภาพรวมสั้น ๆ
 แอปวางแผนชีวิต/กิจกรรม (React Native + Expo) ต่อกับ backend FastAPI. ส่วนสำคัญคือปฏิทินเดือน (จุดสีฟ้า = กิจกรรมประจำวันจาก routine, จุดสีแดง = กิจกรรมอื่น) และการดึง/สร้างกิจกรรมอัตโนมัติจากแม่แบบประจำวัน (routine).

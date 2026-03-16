@@ -5,7 +5,7 @@
  * 1. ตรวจสอบ JWT token ว่าผู้ใช้เข้าสู่ระบบอยู่หรือไม่
  * 2. กำหนด Navigation Structure (Stack + Tab Navigator)
  * 3. จัดการ Auto-login และ Auto-diary creation
- * 4. จัดการ Notification Handler และ Background Fetch
+ * 4. จัดการ Notification Handler
  */
 
 import React, { useEffect, useState, useRef } from "react";
@@ -16,11 +16,11 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Notifications from 'expo-notifications';
-import { initAutoDiary } from "./src/autoDiaryService";
+import { initAutoDiary } from "./src/services/autoDiaryService";
 import YesterdayDiaryModal from './src/components/YesterdayDiaryModal';
 import { listDiaries } from './src/api';
 import { requestNotificationPermission } from './src/services/notificationService';
-import { registerBackgroundFetch } from './src/services/backgroundFetchService';
+import { navigationRef } from './src/services/navigationService';
 
 // Import หน้าจอทั้งหมด (11 screens)
 import LoginScreen from "./src/screens/Login";
@@ -88,7 +88,7 @@ function MainTabs() {
  * 2. ถ้ามี token → ไป Main (Tab Navigator) + เรียก initAutoDiary()
  * 3. ถ้าไม่มี token → ไป Login
  * 4. สร้าง Stack Navigator สำหรับทุกหน้าจอ
- * 5. Setup notification handler และ background fetch
+ * 5. Setup notification handler
  */
 export default function App() {
   // State สำหรับเก็บ initial route (null = กำลังโหลด)
@@ -96,8 +96,7 @@ export default function App() {
   const [showYesterdayModal, setShowYesterdayModal] = useState(false);
   const [yesterdayISO, setYesterdayISO] = useState(null);
   
-  // Ref สำหรับ navigation
-  const navigationRef = useRef();
+  // Ref สำหรับ notification
   const notificationListener = useRef();
   const responseListener = useRef();
 
@@ -110,12 +109,9 @@ export default function App() {
       setInitial(token ? "Main" : "Login");
       
       if (token) {
-        // Setup notification permissions และ background fetch
-        const hasPermission = await requestNotificationPermission();
-        if (hasPermission) {
-          await registerBackgroundFetch();
-          console.log('✅ Notification system ready');
-        }
+        // Setup notification permissions
+        await requestNotificationPermission();
+        console.log('✅ Notification system ready');
 
         // คำนวณวันที่เมื่อวาน
         const today = new Date(); const y = new Date(today); y.setDate(today.getDate() - 1);
@@ -153,7 +149,7 @@ export default function App() {
       
       // ถ้าเป็น activity reminder → เปิดหน้า ActivityDetail
       if (data.type === 'activity_reminder' && data.activityId) {
-        navigationRef.current?.navigate('ActivityDetail', { 
+        navigationRef.navigate('ActivityDetail', { 
           activityId: data.activityId 
         });
       }
@@ -161,8 +157,12 @@ export default function App() {
 
     // Cleanup listeners
     return () => {
-      Notifications.removeNotificationSubscription(notificationListener.current);
-      Notifications.removeNotificationSubscription(responseListener.current);
+      if (notificationListener.current) {
+        notificationListener.current.remove();
+      }
+      if (responseListener.current) {
+        responseListener.current.remove();
+      }
     };
   }, []);
 

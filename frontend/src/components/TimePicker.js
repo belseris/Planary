@@ -15,13 +15,17 @@ export default function TimePicker({ value, onChange, visible, onClose }) {
   // แยก HH:MM
   const [hours, minutes] = (value || "00:00").split(':');
   
+  // สร้างรายการชั่วโมง 00-23 และนาที 00-59 เพื่อให้เลือกได้ทุกนาที
+  // ใช้ padStart(2) เพื่อให้รูปแบบตัวเลขคงที่ 2 หลัก
   const hourOptions = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
-  const minuteOptions = Array.from({ length: 61 }, (_, i) => String(i).padStart(2, '0'));
+  const minuteOptions = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
 
+  // เปลี่ยนเฉพาะชั่วโมง โดยคงนาทีเดิมไว้
   const handleHourChange = (hour) => {
     onChange(`${hour}:${minutes}`);
   };
 
+  // เปลี่ยนเฉพาะนาที โดยคงชั่วโมงเดิมไว้
   const handleMinuteChange = (minute) => {
     onChange(`${hours}:${minute}`);
   };
@@ -38,6 +42,7 @@ export default function TimePicker({ value, onChange, visible, onClose }) {
         activeOpacity={1} 
         onPress={onClose}
       >
+        {/* onStartShouldSetResponder กันการกดภายใน modal แล้วปิดเองโดยไม่ตั้งใจ */}
         <View style={styles.container} onStartShouldSetResponder={() => true}>
           <View style={styles.header}>
             <Text style={styles.title}>เลือกเวลา</Text>
@@ -60,6 +65,7 @@ export default function TimePicker({ value, onChange, visible, onClose }) {
                     ]}
                     onPress={() => handleHourChange(hour)}
                   >
+                    {/* ถ้าค่า hour ตรงค่าปัจจุบัน จะใช้ style selected เพื่อไฮไลต์ */}
                     <Text style={[
                       styles.optionText,
                       hours === hour && styles.optionTextSelected

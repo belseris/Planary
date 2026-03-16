@@ -35,6 +35,42 @@ from uuid import UUID
 
 router = APIRouter(prefix="/activities", tags=["Activities"])
 
+DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+
+def _parse_reminder_minutes(value) -> int | None:
+    try:
+        if value is None:
+            return None
+        return int(value)
+    except Exception:
+        return None
+
+def _normalize_status(status: str | None) -> str:
+    """
+    แปลง status จาก Frontend format (pending, in_progress, done) 
+    เป็น Backend format (normal, urgent, done, cancelled)
+    
+    Mapping:
+    - pending -> normal
+    - in_progress -> urgent
+    - done -> done
+    - cancelled -> cancelled
+    - urgent -> urgent (รักษาไว้)
+    - normal -> normal (รักษาไว้)
+    """
+    if not status:
+        return "normal"
+    status = status.lower().strip()
+    if status == "pending":
+        return "normal"
+    if status == "in_progress":
+        return "urgent"
+    # คืนค่าตามเดิมสำหรับ done, cancelled, urgent, normal
+    return status
+
+def get_week_end(date_value: datetime.date) -> datetime.date:
+    return date_value + datetime.timedelta(days=(6 - date_value.weekday()))
+
 @router.get("/month/{year}/{month}", response_model=dict)
 def get_month_activities(
     year: int,
@@ -67,9 +103,15 @@ def get_month_activities(
         RoutineActivity.user_id == me.id
     ).all()
     
+    today = datetime.date.today()
+
     # วนลูปแต่ละวันในเดือน และ instantiate routines ที่ยังไม่มี
     current_date = start_date
     while current_date <= end_date:
+        if current_date < today or current_date > week_end:
+            current_date += datetime.timedelta(days=1)
+            continue
+
         day_key = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"][current_date.weekday()]
         
         # หา routines ของวันนี้
@@ -97,6 +139,9 @@ def get_month_activities(
                         for st in routine.subtasks
                     ]
                 
+                reminder_min = _parse_reminder_minutes(routine.reminder_minutes)
+                remind_enabled = bool(routine.time) and reminder_min is not None and reminder_min > 0
+
                 new_activity = Activity(
                     user_id=me.id,
                     routine_id=routine.id,
@@ -108,6 +153,10 @@ def get_month_activities(
                     all_day=False,
                     notes=routine.notes,
                     subtasks=copied_subtasks,
+                    remind=remind_enabled,
+                    remind_offset_min=reminder_min or 5,
+                    remind_type="simple",
+                    remind_sound=True if routine.remind_sound is None else bool(routine.remind_sound),
                 )
                 db.add(new_activity)
         
@@ -155,8 +204,19 @@ def list_activities(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.")
 
+    today = datetime.date.today()
+    week_end = get_week_end(today)
+
     # 1. หาวันของสัปดาห์ (e.g., "mon")
     day_key = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"][target_date.weekday()]
+
+    if target_date < today:
+        existing_activities = db.query(Activity).filter(
+            Activity.user_id == me.id,
+            Activity.date == target_date
+        ).all()
+        existing_activities.sort(key=lambda x: x.time if x.time else datetime.time.max)
+        return ActivityList(items=existing_activities)
 
     # 2. ดึง "แม่แบบ" ทั้งหมดของวันนั้น
     routine_templates = db.query(RoutineActivity).filter(
@@ -190,6 +250,9 @@ def list_activities(
                     for st in template.subtasks
                 ]
             
+            reminder_min = _parse_reminder_minutes(template.reminder_minutes)
+            remind_enabled = bool(template.time) and reminder_min is not None and reminder_min > 0
+
             new_activity = Activity(
                 user_id=me.id,
                 routine_id=template.id, # ลิงก์กลับไปที่แม่แบบ
@@ -201,6 +264,10 @@ def list_activities(
                 all_day=False,
                 notes=template.notes, # คัดลอกรายละเอียดจากแม่แบบ
                 subtasks=copied_subtasks, # คัดลอกงานย่อยจากแม่แบบ (รีเซ็ต completed)
+                remind=remind_enabled,
+                remind_offset_min=reminder_min or 5,
+                remind_type="simple",
+                remind_sound=True if template.remind_sound is None else bool(template.remind_sound),
             )
             new_activities_to_create.append(new_activity)
 
@@ -226,60 +293,15 @@ def create_activity(payload: ActivityCreate, db: Session = Depends(get_db), me: 
     """
     สร้างกิจกรรมเฉพาะกิจ (ที่ไม่ใช่ Routine)
     """
-    row = Activity(user_id=me.id, **payload.model_dump())
+    data = payload.model_dump()
+    # แปลง status จาก Frontend format เป็น Backend format
+    if "status" in data:
+        data["status"] = _normalize_status(data["status"])
+    row = Activity(user_id=me.id, **data)
     db.add(row)
     db.commit()
     db.refresh(row)
     return row
-
-@router.get("/upcoming", response_model=list)
-def get_upcoming_activities(
-    db: Session = Depends(get_db),
-    me: User = Depends(current_user)
-):
-    """
-    ดึงกิจกรรมที่จะมาถึงใน 30 นาทีข้างหน้า (สำหรับ background notification)
-    
-    Logic:
-    - Activity time >= now (hasn't passed yet)
-    - Activity time <= now + 30 minutes (within notification window)
-    """
-    from datetime import datetime, timedelta
-    
-    now = datetime.now()
-    today = now.date()
-    window_start = now
-    window_end = now + timedelta(minutes=30)
-    
-    activities = db.query(Activity).filter(
-        Activity.user_id == me.id,
-        Activity.date == today,
-        Activity.all_day == False,
-        Activity.remind == True,
-        Activity.notification_sent == False,
-        Activity.status.notin_(["done", "cancelled"]),
-        Activity.time.isnot(None)
-    ).all()
-    
-    upcoming = []
-    for act in activities:
-        activity_datetime = datetime.combine(act.date, act.time)
-        
-        # Check if activity is within next 30 minutes
-        if window_start <= activity_datetime <= window_end:
-            minutes_until = int((activity_datetime - now).total_seconds() / 60)
-            
-            upcoming.append({
-                "id": str(act.id),
-                "title": act.title,
-                "time": act.time.strftime("%H:%M"),
-                "category": act.category,
-                "minutes_until": minutes_until,
-                "remind_sound": act.remind_sound,
-                "remind_type": act.remind_type or "simple"
-            })
-    
-    return upcoming
 
 
 @router.get("/debug/all-today", response_model=list)
@@ -337,6 +359,16 @@ def get_activity(activity_id: UUID, db: Session = Depends(get_db), me: User = De
     row = db.query(Activity).filter(Activity.id == activity_id, Activity.user_id == me.id).first()
     if not row:
         raise HTTPException(404, "ไม่พบกิจกรรม")
+    if row.routine_id and (not row.notes or not row.subtasks):
+        routine = db.query(RoutineActivity).filter(
+            RoutineActivity.id == row.routine_id,
+            RoutineActivity.user_id == me.id
+        ).first()
+        if routine:
+            if not row.notes:
+                row.notes = routine.notes
+            if not row.subtasks:
+                row.subtasks = routine.subtasks
     return row
 
 @router.put("/{activity_id}", response_model=ActivityOut)
@@ -357,14 +389,22 @@ def update_activity(
     if isinstance(payload, dict) and 'date' in payload:
         payload.pop('date')
 
+    # Log payload for debugging
+    print(f"[DEBUG] PUT /activities/{activity_id} payload:", payload)
+
     # Validate remaining fields with ActivityUpdate schema
     try:
         validated = ActivityUpdate.model_validate(payload)
     except Exception as e:
         # Re-raise as HTTP 422 with validation details
+        print(f"[ERROR] Validation failed: {e}")
         raise HTTPException(status_code=422, detail=str(e))
 
     update_data = validated.model_dump(exclude_unset=True)
+    
+    # แปลง status จาก Frontend format เป็น Backend format
+    if "status" in update_data:
+        update_data["status"] = _normalize_status(update_data["status"])
     
     # ถ้าอัปเดตสถานะของกิจกรรมที่มาจาก Routine
     # มันจะอัปเดตแค่ "กิจกรรมจริง" ของวันนี้ ไม่กระทบ "แม่แบบ"
